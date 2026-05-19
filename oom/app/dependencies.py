@@ -9,7 +9,8 @@ from oom.memory_core.core import MemoryCore
 async def get_memory_core(request: Request) -> MemoryCore:
     core = getattr(request.app.state, "memory_core", None)
     if core is None:
-        core = MemoryCore(AppConfig())
+        config = getattr(request.app.state, "config", AppConfig())
+        core = MemoryCore(config)
         request.app.state.memory_core = core
     await core.initialize()
     return core

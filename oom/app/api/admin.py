@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends
 
 from oom.app.dependencies import get_memory_core
+from oom.app.security import require_api_key
 from oom.memory_core.core import MemoryCore
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_api_key)])
 
 
 @router.get("/admin/pipeline/status")

@@ -74,6 +74,12 @@ class OffloadConfig(BaseModel):
     data_dir: str = Field(default_factory=lambda: _env("OOM_DATA_DIR", "ONLY_ONE_MEMORY_DATA_DIR", ".oom/offload"))
 
 
+class SecurityConfig(BaseModel):
+    api_key: str | None = Field(
+        default_factory=lambda: os.getenv("OOM_API_KEY") or os.getenv("ONLY_ONE_MEMORY_API_KEY")
+    )
+
+
 class AppConfig(BaseModel):
     server: ServerConfig = Field(default_factory=ServerConfig)
     store: StoreConfig = Field(default_factory=StoreConfig)
@@ -81,3 +87,4 @@ class AppConfig(BaseModel):
     recall: RecallConfig = Field(default_factory=RecallConfig)
     pipeline: PipelineConfig = Field(default_factory=PipelineConfig)
     offload: OffloadConfig = Field(default_factory=OffloadConfig)
+    security: SecurityConfig = Field(default_factory=SecurityConfig)
