@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from oom.memory_core.admin.audit import AuditEvent
 from oom.memory_core.types import (
     ConversationSearchHit,
     L0Event,
@@ -58,3 +59,7 @@ class MemoryStore(Protocol):
     async def upsert_offload_entry(self, entry: OffloadEntry) -> OffloadEntry: ...
 
     async def list_offload_entries(self, tenant_id: str, session_id: str) -> list[OffloadEntry]: ...
+
+    async def write_audit_event(self, event: AuditEvent) -> AuditEvent: ...
+
+    async def list_audit_events(self, tenant_id: str | None = None) -> list[AuditEvent]: ...

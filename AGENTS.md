@@ -13,3 +13,4 @@
 - 2026-05-19：V0.4 验收收口，新增场景导航块、Persona 生成导航追加、SceneExtractor 到 L2 store 同步，以及场景 PATCH/GET 验收测试。
 - 2026-05-19：使用 executing-plans 执行 V0.5，新增 Offload refs/restore API、entries 持久化、Mermaid 图、compressor helper 与 node_id restore 端到端链路。
 - 2026-05-19：开始执行 V0.6，新增可选 API key 配置并保护 admin API，未配置 key 时保持本地开发开放。
+- 2026-05-19：V0.6 继续新增审计日志持久化契约，SQLite/Postgres 均增加 audit_logs 表与查询能力。

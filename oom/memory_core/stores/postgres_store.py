@@ -5,6 +5,7 @@ from typing import Any
 
 import asyncpg
 
+from oom.memory_core.admin.audit import AuditEvent
 from oom.memory_core.config import PostgresConfig
 from oom.memory_core.offload.types import OffloadEntry
 from oom.memory_core.types import (
@@ -176,6 +177,24 @@ class PostgresMemoryStore:
                 """
                 CREATE INDEX IF NOT EXISTS idx_offload_entries_session
                 ON offload_entries(tenant_id, session_id, created_at)
+                """
+            )
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS audit_logs (
+                    id TEXT PRIMARY KEY,
+                    actor TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    target TEXT NOT NULL,
+                    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    created_at TIMESTAMPTZ NOT NULL
+                )
+                """
+            )
+            await conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at
+                ON audit_logs(created_at)
                 """
             )
 
@@ -516,6 +535,45 @@ class PostgresMemoryStore:
             )
         return [self._offload_entry_from_record(row) for row in rows]
 
+    async def write_audit_event(self, event: AuditEvent) -> AuditEvent:
+        pool = self._require_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO audit_logs(id, actor, action, target, metadata_json, created_at)
+                VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+                ON CONFLICT(id) DO UPDATE SET
+                    actor = excluded.actor,
+                    action = excluded.action,
+                    target = excluded.target,
+                    metadata_json = excluded.metadata_json,
+                    created_at = excluded.created_at
+                """,
+                event.id,
+                event.actor,
+                event.action,
+                event.target,
+                json.dumps(event.metadata, ensure_ascii=False, sort_keys=True),
+                event.created_at,
+            )
+        return event
+
+    async def list_audit_events(self, tenant_id: str | None = None) -> list[AuditEvent]:
+        pool = self._require_pool()
+        async with pool.acquire() as conn:
+            if tenant_id is None:
+                rows = await conn.fetch("SELECT * FROM audit_logs ORDER BY created_at ASC, id ASC")
+            else:
+                rows = await conn.fetch(
+                    """
+                    SELECT * FROM audit_logs
+                    WHERE metadata_json->>'tenant_id' = $1
+                    ORDER BY created_at ASC, id ASC
+                    """,
+                    tenant_id,
+                )
+        return [self._audit_event_from_record(row) for row in rows]
+
     def _require_pool(self) -> asyncpg.Pool:
         if self._pool is None:
             raise RuntimeError("Postgres memory store is not initialized")
@@ -650,6 +708,22 @@ class PostgresMemoryStore:
                 "score": record["score"],
                 "node_id": record["node_id"],
                 "result_ref": record["result_ref"],
+                "metadata": metadata,
+                "created_at": record["created_at"],
+            }
+        )
+
+    @staticmethod
+    def _audit_event_from_record(record: asyncpg.Record) -> AuditEvent:
+        metadata = record["metadata_json"]
+        if isinstance(metadata, str):
+            metadata = json.loads(metadata)
+        return AuditEvent.model_validate(
+            {
+                "id": record["id"],
+                "actor": record["actor"],
+                "action": record["action"],
+                "target": record["target"],
                 "metadata": metadata,
                 "created_at": record["created_at"],
             }

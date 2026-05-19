@@ -7,6 +7,7 @@ from typing import Any
 import aiosqlite
 
 from oom.memory_core.config import SqliteConfig
+from oom.memory_core.admin.audit import AuditEvent
 from oom.memory_core.offload.types import OffloadEntry
 from oom.memory_core.types import (
     ConversationSearchHit,
@@ -137,6 +138,18 @@ class SqliteMemoryStore:
 
             CREATE INDEX IF NOT EXISTS idx_offload_entries_session
             ON offload_entries(tenant_id, session_id, created_at);
+
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id TEXT PRIMARY KEY,
+                actor TEXT NOT NULL,
+                action TEXT NOT NULL,
+                target TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at
+            ON audit_logs(created_at);
             """
         )
         await self._db.commit()
@@ -526,6 +539,46 @@ class SqliteMemoryStore:
         )
         return [self._offload_entry_from_row(row) for row in await cursor.fetchall()]
 
+    async def write_audit_event(self, event: AuditEvent) -> AuditEvent:
+        db = self._require_db()
+        await db.execute(
+            """
+            INSERT INTO audit_logs(id, actor, action, target, metadata_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                actor = excluded.actor,
+                action = excluded.action,
+                target = excluded.target,
+                metadata_json = excluded.metadata_json,
+                created_at = excluded.created_at
+            """,
+            (
+                event.id,
+                event.actor,
+                event.action,
+                event.target,
+                json.dumps(event.metadata, ensure_ascii=False, sort_keys=True),
+                event.created_at.isoformat(),
+            ),
+        )
+        await db.commit()
+        return event
+
+    async def list_audit_events(self, tenant_id: str | None = None) -> list[AuditEvent]:
+        db = self._require_db()
+        if tenant_id is None:
+            cursor = await db.execute("SELECT * FROM audit_logs ORDER BY created_at ASC, id ASC")
+        else:
+            cursor = await db.execute(
+                """
+                SELECT * FROM audit_logs
+                WHERE json_extract(metadata_json, '$.tenant_id') = ?
+                ORDER BY created_at ASC, id ASC
+                """,
+                (tenant_id,),
+            )
+        return [self._audit_event_from_row(row) for row in await cursor.fetchall()]
+
     async def _try_enable_sqlite_vec(self) -> None:
         if self._db is None:
             return
@@ -686,6 +739,19 @@ class SqliteMemoryStore:
                 "score": row["score"],
                 "node_id": row["node_id"],
                 "result_ref": row["result_ref"],
+                "metadata": json.loads(row["metadata_json"]),
+                "created_at": row["created_at"],
+            }
+        )
+
+    @staticmethod
+    def _audit_event_from_row(row: aiosqlite.Row) -> AuditEvent:
+        return AuditEvent.model_validate(
+            {
+                "id": row["id"],
+                "actor": row["actor"],
+                "action": row["action"],
+                "target": row["target"],
                 "metadata": json.loads(row["metadata_json"]),
                 "created_at": row["created_at"],
             }
