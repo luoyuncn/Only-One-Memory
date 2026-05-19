@@ -574,6 +574,55 @@ class PostgresMemoryStore:
                 )
         return [self._audit_event_from_record(row) for row in rows]
 
+    async def export_tenant_records(self, tenant_id: str) -> dict[str, Any]:
+        pool = self._require_pool()
+        async with pool.acquire() as conn:
+            l0 = await conn.fetch(
+                "SELECT * FROM conversation_events WHERE tenant_id = $1 ORDER BY event_ts ASC", tenant_id
+            )
+            l1 = await conn.fetch("SELECT * FROM memories WHERE tenant_id = $1 ORDER BY updated_at ASC", tenant_id)
+            l2 = await conn.fetch("SELECT * FROM scenes WHERE tenant_id = $1 ORDER BY updated_at ASC", tenant_id)
+            l3 = await conn.fetch("SELECT * FROM profiles WHERE tenant_id = $1 ORDER BY updated_at ASC", tenant_id)
+            offload = await conn.fetch(
+                "SELECT * FROM offload_entries WHERE tenant_id = $1 ORDER BY created_at ASC", tenant_id
+            )
+        audit = await self.list_audit_events(tenant_id)
+        return {
+            "l0": [self._event_from_record(row).model_dump(mode="json") for row in l0],
+            "l1": [self._memory_from_record(row).model_dump(mode="json") for row in l1],
+            "l2": [self._scene_from_record(row).model_dump(mode="json") for row in l2],
+            "l3": [self._profile_from_record(row).model_dump(mode="json") for row in l3],
+            "offload_entries": [self._offload_entry_from_record(row).model_dump(mode="json") for row in offload],
+            "audit": [event.model_dump(mode="json") for event in audit],
+        }
+
+    async def import_tenant_records(self, tenant_id: str, records: dict[str, Any]) -> dict[str, int]:
+        counts = {"l0": 0, "l1": 0, "l2": 0, "l3": 0, "offload_entries": 0, "audit": 0}
+        for item in records.get("l0", []):
+            event = L0Event.model_validate(item).model_copy(update={"tenant_id": tenant_id})
+            await self.upsert_l0(event)
+            counts["l0"] += 1
+        for item in records.get("l1", []):
+            memory = MemoryAtom.model_validate(item).model_copy(update={"tenant_id": tenant_id})
+            await self.upsert_l1(memory)
+            counts["l1"] += 1
+        for item in records.get("l2", []):
+            scene = SceneBlock.model_validate(item).model_copy(update={"tenant_id": tenant_id})
+            await self.upsert_scene(scene)
+            counts["l2"] += 1
+        for item in records.get("l3", []):
+            profile = ProfileDocument.model_validate(item).model_copy(update={"tenant_id": tenant_id})
+            await self.upsert_profile(profile)
+            counts["l3"] += 1
+        for item in records.get("offload_entries", []):
+            entry = OffloadEntry.model_validate(item).model_copy(update={"tenant_id": tenant_id})
+            await self.upsert_offload_entry(entry)
+            counts["offload_entries"] += 1
+        for item in records.get("audit", []):
+            await self.write_audit_event(AuditEvent.model_validate(item))
+            counts["audit"] += 1
+        return counts
+
     def _require_pool(self) -> asyncpg.Pool:
         if self._pool is None:
             raise RuntimeError("Postgres memory store is not initialized")

@@ -47,6 +47,16 @@ class OffloadRefStore:
             return None
         return OffloadRef.model_validate_json(path.read_text(encoding="utf-8"))
 
+    def list_ref_metadata(self, tenant_id: str | None = None) -> list[dict]:
+        refs: list[dict] = []
+        for path in sorted(self.data_dir.glob("*.json")):
+            ref = OffloadRef.model_validate_json(path.read_text(encoding="utf-8"))
+            if tenant_id is not None and ref.tenant_id != tenant_id:
+                continue
+            item = ref.model_dump(mode="json", exclude={"content"})
+            refs.append(item)
+        return refs
+
     def _path_for(self, ref_id: str) -> Path:
         self._validate_ref_id(ref_id)
         path = (self.data_dir / f"{ref_id}.json").resolve()
