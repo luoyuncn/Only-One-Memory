@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from oom.app.dependencies import get_memory_core
 from oom.app.security import require_api_key
+from oom.memory_core.admin.delete_user import DeleteUserRequest, DeleteUserResult, DeleteUserService
 from oom.memory_core.admin.export_import import ExportRequest, ImportResult, MemoryExport, MemoryExportImportService
 from oom.memory_core.config import AppConfig
 from oom.memory_core.core import MemoryCore
@@ -39,3 +40,14 @@ async def import_memory(payload: MemoryExport, core: MemoryCore = Depends(get_me
         return await service.import_export(payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/admin/delete-user", response_model=DeleteUserResult)
+async def delete_user(
+    payload: DeleteUserRequest,
+    request: Request,
+    core: MemoryCore = Depends(get_memory_core),
+) -> DeleteUserResult:
+    config = getattr(request.app.state, "config", AppConfig())
+    service = DeleteUserService(core.store, ref_store=OffloadRefStore(config.offload.data_dir))
+    return await service.delete_user(payload.tenant_id, payload.user_id)

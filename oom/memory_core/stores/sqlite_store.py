@@ -627,6 +627,46 @@ class SqliteMemoryStore:
             counts["audit"] += 1
         return counts
 
+    async def delete_user_records(self, tenant_id: str, user_id: str) -> dict[str, int]:
+        db = self._require_db()
+        event_ids = await self._select_ids(
+            "SELECT id FROM conversation_events WHERE tenant_id = ? AND user_id = ?", (tenant_id, user_id)
+        )
+        memory_ids = await self._select_ids(
+            "SELECT id FROM memories WHERE tenant_id = ? AND user_id = ?", (tenant_id, user_id)
+        )
+        await self._delete_by_ids("conversation_events_fts", "event_id", event_ids)
+        await self._delete_by_ids("l0_embeddings", "event_id", event_ids)
+        await self._delete_by_ids("memories_fts", "memory_id", memory_ids)
+        await self._delete_by_ids("l1_embeddings", "memory_id", memory_ids)
+        await self._delete_by_ids("memory_sources", "memory_id", memory_ids)
+
+        l0 = await self._delete_count(
+            "DELETE FROM conversation_events WHERE tenant_id = ? AND user_id = ?", (tenant_id, user_id)
+        )
+        l1 = await self._delete_count("DELETE FROM memories WHERE tenant_id = ? AND user_id = ?", (tenant_id, user_id))
+        l2 = await self._delete_count("DELETE FROM scenes WHERE tenant_id = ? AND user_id = ?", (tenant_id, user_id))
+        l3 = await self._delete_count(
+            "DELETE FROM profiles WHERE tenant_id = ? AND scope_id = ?", (tenant_id, user_id)
+        )
+        offload = await self._delete_count(
+            """
+            DELETE FROM offload_entries
+            WHERE tenant_id = ? AND json_extract(metadata_json, '$.user_id') = ?
+            """,
+            (tenant_id, user_id),
+        )
+        audit = await self._delete_count(
+            """
+            DELETE FROM audit_logs
+            WHERE json_extract(metadata_json, '$.tenant_id') = ?
+              AND json_extract(metadata_json, '$.user_id') = ?
+            """,
+            (tenant_id, user_id),
+        )
+        await db.commit()
+        return {"l0": l0, "l1": l1, "l2": l2, "l3": l3, "offload": offload, "indexes": len(event_ids) + len(memory_ids), "audit": audit}
+
     async def _try_enable_sqlite_vec(self) -> None:
         if self._db is None:
             return
@@ -650,6 +690,23 @@ class SqliteMemoryStore:
         cursor = await db.execute(f"SELECT count(*) AS count FROM {table_name}")
         row = await cursor.fetchone()
         return int(row["count"])
+
+    async def _select_ids(self, sql: str, params: tuple[Any, ...]) -> list[str]:
+        db = self._require_db()
+        cursor = await db.execute(sql, params)
+        return [str(row["id"]) for row in await cursor.fetchall()]
+
+    async def _delete_by_ids(self, table_name: str, id_column: str, ids: list[str]) -> None:
+        if not ids:
+            return
+        db = self._require_db()
+        placeholders = ", ".join("?" for _ in ids)
+        await db.execute(f"DELETE FROM {table_name} WHERE {id_column} IN ({placeholders})", ids)
+
+    async def _delete_count(self, sql: str, params: tuple[Any, ...]) -> int:
+        db = self._require_db()
+        cursor = await db.execute(sql, params)
+        return max(cursor.rowcount, 0)
 
     @staticmethod
     def _filters_sql(filters: dict[str, Any] | None, alias: str = "e") -> tuple[str, list[Any]]:

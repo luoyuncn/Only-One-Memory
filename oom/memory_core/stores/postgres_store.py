@@ -623,6 +623,91 @@ class PostgresMemoryStore:
             counts["audit"] += 1
         return counts
 
+    async def delete_user_records(self, tenant_id: str, user_id: str) -> dict[str, int]:
+        pool = self._require_pool()
+        async with pool.acquire() as conn:
+            l0 = await conn.fetchval(
+                """
+                WITH deleted AS (
+                    DELETE FROM conversation_events
+                    WHERE tenant_id = $1 AND user_id = $2
+                    RETURNING id
+                )
+                SELECT count(*) FROM deleted
+                """,
+                tenant_id,
+                user_id,
+            )
+            l1 = await conn.fetchval(
+                """
+                WITH deleted AS (
+                    DELETE FROM memories
+                    WHERE tenant_id = $1 AND user_id = $2
+                    RETURNING id
+                )
+                SELECT count(*) FROM deleted
+                """,
+                tenant_id,
+                user_id,
+            )
+            l2 = await conn.fetchval(
+                """
+                WITH deleted AS (
+                    DELETE FROM scenes
+                    WHERE tenant_id = $1 AND user_id = $2
+                    RETURNING id
+                )
+                SELECT count(*) FROM deleted
+                """,
+                tenant_id,
+                user_id,
+            )
+            l3 = await conn.fetchval(
+                """
+                WITH deleted AS (
+                    DELETE FROM profiles
+                    WHERE tenant_id = $1 AND scope_id = $2
+                    RETURNING scope_id
+                )
+                SELECT count(*) FROM deleted
+                """,
+                tenant_id,
+                user_id,
+            )
+            offload = await conn.fetchval(
+                """
+                WITH deleted AS (
+                    DELETE FROM offload_entries
+                    WHERE tenant_id = $1 AND metadata_json->>'user_id' = $2
+                    RETURNING id
+                )
+                SELECT count(*) FROM deleted
+                """,
+                tenant_id,
+                user_id,
+            )
+            audit = await conn.fetchval(
+                """
+                WITH deleted AS (
+                    DELETE FROM audit_logs
+                    WHERE metadata_json->>'tenant_id' = $1 AND metadata_json->>'user_id' = $2
+                    RETURNING id
+                )
+                SELECT count(*) FROM deleted
+                """,
+                tenant_id,
+                user_id,
+            )
+        return {
+            "l0": int(l0),
+            "l1": int(l1),
+            "l2": int(l2),
+            "l3": int(l3),
+            "offload": int(offload),
+            "indexes": int(l0) + int(l1),
+            "audit": int(audit),
+        }
+
     def _require_pool(self) -> asyncpg.Pool:
         if self._pool is None:
             raise RuntimeError("Postgres memory store is not initialized")

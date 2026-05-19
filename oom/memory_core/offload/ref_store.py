@@ -57,6 +57,15 @@ class OffloadRefStore:
             refs.append(item)
         return refs
 
+    def delete_refs_for_user(self, tenant_id: str, user_id: str) -> int:
+        count = 0
+        for path in sorted(self.data_dir.glob("*.json")):
+            ref = OffloadRef.model_validate_json(path.read_text(encoding="utf-8"))
+            if ref.tenant_id == tenant_id and ref.user_id == user_id:
+                path.unlink()
+                count += 1
+        return count
+
     def _path_for(self, ref_id: str) -> Path:
         self._validate_ref_id(ref_id)
         path = (self.data_dir / f"{ref_id}.json").resolve()
