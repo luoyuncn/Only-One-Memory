@@ -5,8 +5,8 @@ from typing import Any
 
 import asyncpg
 
-from only_one_memory.memory_core.config import PostgresConfig
-from only_one_memory.memory_core.types import ConversationSearchHit, L0Event, StoreCapabilities
+from oom.memory_core.config import PostgresConfig
+from oom.memory_core.types import ConversationSearchHit, L0Event, StoreCapabilities
 
 
 class PostgresMemoryStore:

@@ -6,34 +6,38 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+def _env(name: str, legacy_name: str, default: str) -> str:
+    return os.getenv(name) or os.getenv(legacy_name) or default
+
+
 def _sqlite_vector_backend() -> Literal["sqlite_vec", "blob_bruteforce"]:
-    value = os.getenv("ONLY_ONE_MEMORY_SQLITE_VECTOR_BACKEND", "sqlite_vec")
+    value = _env("OOM_SQLITE_VECTOR_BACKEND", "ONLY_ONE_MEMORY_SQLITE_VECTOR_BACKEND", "sqlite_vec")
     if value == "blob_bruteforce":
         return "blob_bruteforce"
     return "sqlite_vec"
 
 
 def _store_backend() -> Literal["sqlite", "postgres"]:
-    value = os.getenv("ONLY_ONE_MEMORY_STORE_BACKEND", "sqlite")
+    value = _env("OOM_STORE_BACKEND", "ONLY_ONE_MEMORY_STORE_BACKEND", "sqlite")
     if value == "postgres":
         return "postgres"
     return "sqlite"
 
 
 class ServerConfig(BaseModel):
-    host: str = Field(default_factory=lambda: os.getenv("ONLY_ONE_MEMORY_HOST", "127.0.0.1"))
-    port: int = Field(default_factory=lambda: int(os.getenv("ONLY_ONE_MEMORY_PORT", "8710")))
+    host: str = Field(default_factory=lambda: _env("OOM_HOST", "ONLY_ONE_MEMORY_HOST", "127.0.0.1"))
+    port: int = Field(default_factory=lambda: int(_env("OOM_PORT", "ONLY_ONE_MEMORY_PORT", "8710")))
 
 
 class SqliteConfig(BaseModel):
-    path: str = Field(default_factory=lambda: os.getenv("ONLY_ONE_MEMORY_SQLITE_PATH", "only_one_memory.db"))
+    path: str = Field(default_factory=lambda: _env("OOM_SQLITE_PATH", "ONLY_ONE_MEMORY_SQLITE_PATH", "oom.db"))
     vector_backend: Literal["sqlite_vec", "blob_bruteforce"] = Field(default_factory=_sqlite_vector_backend)
-    vector_dimension: int = Field(default_factory=lambda: int(os.getenv("ONLY_ONE_MEMORY_VECTOR_DIMENSION", "1536")))
+    vector_dimension: int = Field(default_factory=lambda: int(_env("OOM_VECTOR_DIMENSION", "ONLY_ONE_MEMORY_VECTOR_DIMENSION", "1536")))
 
 
 class PostgresConfig(BaseModel):
-    dsn: str = Field(default_factory=lambda: os.getenv("ONLY_ONE_MEMORY_POSTGRES_DSN", ""))
-    vector_dimension: int = Field(default_factory=lambda: int(os.getenv("ONLY_ONE_MEMORY_VECTOR_DIMENSION", "1536")))
+    dsn: str = Field(default_factory=lambda: _env("OOM_POSTGRES_DSN", "ONLY_ONE_MEMORY_POSTGRES_DSN", ""))
+    vector_dimension: int = Field(default_factory=lambda: int(_env("OOM_VECTOR_DIMENSION", "ONLY_ONE_MEMORY_VECTOR_DIMENSION", "1536")))
 
 
 class StoreConfig(BaseModel):
@@ -44,7 +48,7 @@ class StoreConfig(BaseModel):
 
 class EmbeddingConfig(BaseModel):
     provider: Literal["none"] = "none"
-    dimension: int = Field(default_factory=lambda: int(os.getenv("ONLY_ONE_MEMORY_VECTOR_DIMENSION", "1536")))
+    dimension: int = Field(default_factory=lambda: int(_env("OOM_VECTOR_DIMENSION", "ONLY_ONE_MEMORY_VECTOR_DIMENSION", "1536")))
 
 
 class RecallConfig(BaseModel):

@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 
-from only_one_memory.memory_core.config import StoreConfig
-from only_one_memory.memory_core.stores.sqlite_store import SqliteMemoryStore
-from only_one_memory.memory_core.types import L0Event
+from oom.memory_core.config import StoreConfig
+from oom.memory_core.stores.sqlite_store import SqliteMemoryStore
+from oom.memory_core.types import L0Event
 
 
 async def test_sqlite_l0_upsert_and_fts_search(tmp_path):

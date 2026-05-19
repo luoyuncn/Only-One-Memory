@@ -1,5 +1,5 @@
-from only_one_memory.memory_core.config import AppConfig
-from only_one_memory.memory_core.stores.factory import create_store
+from oom.memory_core.config import AppConfig
+from oom.memory_core.stores.factory import create_store
 
 
 def test_create_sqlite_store_from_config():

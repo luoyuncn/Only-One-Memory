@@ -6,8 +6,8 @@ from typing import Any
 
 import aiosqlite
 
-from only_one_memory.memory_core.config import SqliteConfig
-from only_one_memory.memory_core.types import ConversationSearchHit, L0Event, StoreCapabilities
+from oom.memory_core.config import SqliteConfig
+from oom.memory_core.types import ConversationSearchHit, L0Event, StoreCapabilities
 
 
 class SqliteMemoryStore:

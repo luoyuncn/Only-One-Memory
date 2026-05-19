@@ -1,0 +1,55 @@
+<svg width="1200" height="420" viewBox="0 0 1200 420" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Only-One-Memory logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="420" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#07111F"/>
+      <stop offset="0.55" stop-color="#102A4C"/>
+      <stop offset="1" stop-color="#351B61"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="270" y1="48" x2="1015" y2="345" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38BDF8"/>
+      <stop offset="0.45" stop-color="#818CF8"/>
+      <stop offset="1" stop-color="#C084FC"/>
+    </linearGradient>
+    <linearGradient id="node" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#E0F2FE"/>
+      <stop offset="1" stop-color="#C4B5FD"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="420" rx="34" fill="url(#bg)"/>
+  <circle cx="990" cy="48" r="210" fill="#6366F1" opacity="0.20"/>
+  <circle cx="160" cy="360" r="170" fill="#06B6D4" opacity="0.14"/>
+  <path d="M90 96C236 20 350 64 520 132C674 194 795 220 930 150C1017 105 1087 108 1150 132" stroke="url(#accent)" stroke-width="2" opacity="0.26"/>
+  <path d="M90 326C214 246 344 266 520 312C680 354 812 366 950 286C1032 239 1090 238 1150 258" stroke="url(#accent)" stroke-width="2" opacity="0.18"/>
+
+  <g transform="translate(98 82)" filter="url(#shadow)">
+    <rect width="238" height="238" rx="52" fill="#0F172A" stroke="url(#accent)" stroke-width="3"/>
+    <circle cx="70" cy="74" r="18" fill="url(#node)"/>
+    <circle cx="168" cy="74" r="18" fill="url(#node)"/>
+    <circle cx="70" cy="168" r="18" fill="url(#node)"/>
+    <circle cx="168" cy="168" r="18" fill="url(#node)"/>
+    <path d="M88 74H150" stroke="#93C5FD" stroke-width="8" stroke-linecap="round"/>
+    <path d="M70 92V150" stroke="#93C5FD" stroke-width="8" stroke-linecap="round"/>
+    <path d="M168 92V150" stroke="#A5B4FC" stroke-width="8" stroke-linecap="round"/>
+    <path d="M88 168H150" stroke="#C4B5FD" stroke-width="8" stroke-linecap="round"/>
+    <path d="M116 74C116 122 140 124 140 168" stroke="#67E8F9" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+    <text x="119" y="226" text-anchor="middle" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-weight="800" font-size="44" fill="#F8FAFC">OOM</text>
+  </g>
+
+  <g transform="translate(386 96)">
+    <text font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-weight="900" font-size="76" letter-spacing="-2" fill="#F8FAFC">Only-One-Memory</text>
+    <rect x="0" y="100" width="618" height="4" rx="2" fill="url(#accent)"/>
+    <text y="152" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif" font-weight="700" font-size="30" fill="#DBEAFE">Python-native Agent Memory Runtime</text>
+    <text y="204" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif" font-weight="500" font-size="24" fill="#CBD5E1">别让 Agent 把上下文撑爆，把该记的沉淀为可追溯长期记忆。</text>
+    <g transform="translate(0 246)">
+      <rect width="150" height="42" rx="21" fill="#E0F2FE" fill-opacity="0.12" stroke="#38BDF8" stroke-opacity="0.55"/>
+      <text x="75" y="28" text-anchor="middle" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="17" font-weight="700" fill="#BAE6FD">REST-first</text>
+      <rect x="168" width="176" height="42" rx="21" fill="#EEF2FF" fill-opacity="0.12" stroke="#818CF8" stroke-opacity="0.55"/>
+      <text x="256" y="28" text-anchor="middle" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="17" font-weight="700" fill="#C7D2FE">Evidence-first</text>
+      <rect x="362" width="196" height="42" rx="21" fill="#FAF5FF" fill-opacity="0.12" stroke="#C084FC" stroke-opacity="0.55"/>
+      <text x="460" y="28" text-anchor="middle" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="17" font-weight="700" fill="#E9D5FF">Store-agnostic</text>
+    </g>
+  </g>
+</svg>

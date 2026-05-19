@@ -1,0 +1,76 @@
+<svg width="1180" height="650" viewBox="0 0 1180 650" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Only-One-Memory architecture">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1180" y2="650" gradientUnits="userSpaceOnUse"><stop stop-color="#F8FAFC"/><stop offset="1" stop-color="#EEF2FF"/></linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0EA5E9"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient>
+    <filter id="shadow" x="-10%" y="-20%" width="120%" height="140%"><feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#0F172A" flood-opacity="0.14"/></filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#64748B"/></marker>
+  </defs>
+  <rect width="1180" height="650" rx="28" fill="url(#bg)"/>
+  <text x="590" y="56" text-anchor="middle" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC', sans-serif" font-size="34" font-weight="850" fill="#0F172A">Only-One-Memory 架构：协议适配与记忆核心解耦</text>
+  <text x="590" y="92" text-anchor="middle" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC', sans-serif" font-size="18" fill="#475569">FastAPI 只做入口，MemoryCore 承载稳定业务逻辑，Store Adapter 负责后端切换与降级。</text>
+
+  <g font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC', sans-serif">
+    <g transform="translate(58 145)" filter="url(#shadow)">
+      <rect width="220" height="320" rx="22" fill="#FFFFFF" stroke="#CBD5E1"/>
+      <text x="110" y="42" text-anchor="middle" font-size="20" font-weight="850" fill="#0F172A">Agent Hosts</text>
+      <g font-size="15" fill="#334155">
+        <rect x="24" y="70" width="172" height="38" rx="12" fill="#F1F5F9"/><text x="110" y="95" text-anchor="middle">Python Agent</text>
+        <rect x="24" y="120" width="172" height="38" rx="12" fill="#F1F5F9"/><text x="110" y="145" text-anchor="middle">飞书机器人</text>
+        <rect x="24" y="170" width="172" height="38" rx="12" fill="#F1F5F9"/><text x="110" y="195" text-anchor="middle">MCP Agent</text>
+        <rect x="24" y="220" width="172" height="38" rx="12" fill="#F1F5F9"/><text x="110" y="245" text-anchor="middle">LangGraph / CrewAI</text>
+        <rect x="24" y="270" width="172" height="38" rx="12" fill="#F1F5F9"/><text x="110" y="295" text-anchor="middle">自研 Runtime</text>
+      </g>
+    </g>
+
+    <path d="M286 305 H360" stroke="#64748B" stroke-width="3" marker-end="url(#arrow)"/>
+
+    <g transform="translate(370 135)" filter="url(#shadow)">
+      <rect width="230" height="340" rx="22" fill="#FFFFFF" stroke="#CBD5E1"/>
+      <text x="115" y="42" text-anchor="middle" font-size="20" font-weight="850" fill="#0F172A">Protocol Layer</text>
+      <rect x="28" y="78" width="174" height="56" rx="16" fill="#E0F2FE" stroke="#7DD3FC"/>
+      <text x="115" y="112" text-anchor="middle" font-size="16" font-weight="800" fill="#075985">REST / FastAPI</text>
+      <rect x="28" y="158" width="174" height="56" rx="16" fill="#EEF2FF" stroke="#A5B4FC"/>
+      <text x="115" y="192" text-anchor="middle" font-size="16" font-weight="800" fill="#3730A3">Python SDK</text>
+      <rect x="28" y="238" width="174" height="56" rx="16" fill="#F5F3FF" stroke="#C4B5FD"/>
+      <text x="115" y="272" text-anchor="middle" font-size="16" font-weight="800" fill="#5B21B6">Admin API</text>
+    </g>
+
+    <path d="M610 305 H678" stroke="#64748B" stroke-width="3" marker-end="url(#arrow)"/>
+
+    <g transform="translate(688 120)" filter="url(#shadow)">
+      <rect width="278" height="370" rx="26" fill="url(#core)"/>
+      <text x="139" y="48" text-anchor="middle" font-size="24" font-weight="900" fill="#FFFFFF">MemoryCore</text>
+      <text x="139" y="76" text-anchor="middle" font-size="14" font-weight="600" fill="#DBEAFE">唯一稳定业务入口</text>
+      <g font-size="14" font-weight="750" fill="#0F172A">
+        <rect x="28" y="105" width="222" height="42" rx="13" fill="#FFFFFF" fill-opacity="0.94"/><text x="139" y="132" text-anchor="middle">L0 Capture</text>
+        <rect x="28" y="157" width="222" height="42" rx="13" fill="#FFFFFF" fill-opacity="0.94"/><text x="139" y="184" text-anchor="middle">L1 Extract</text>
+        <rect x="28" y="209" width="222" height="42" rx="13" fill="#FFFFFF" fill-opacity="0.94"/><text x="139" y="236" text-anchor="middle">L2 Scene / L3 Persona</text>
+        <rect x="28" y="261" width="222" height="42" rx="13" fill="#FFFFFF" fill-opacity="0.94"/><text x="139" y="288" text-anchor="middle">Hybrid Recall / Search</text>
+        <rect x="28" y="313" width="222" height="42" rx="13" fill="#FFFFFF" fill-opacity="0.94"/><text x="139" y="340" text-anchor="middle">Context Offload</text>
+      </g>
+    </g>
+
+    <path d="M976 305 H1042" stroke="#64748B" stroke-width="3" marker-end="url(#arrow)"/>
+
+    <g transform="translate(1000 145)" filter="url(#shadow)">
+      <rect width="132" height="320" rx="22" fill="#FFFFFF" stroke="#CBD5E1"/>
+      <text x="66" y="42" text-anchor="middle" font-size="19" font-weight="850" fill="#0F172A">Stores</text>
+      <rect x="16" y="74" width="100" height="58" rx="14" fill="#F1F5F9"/>
+      <text x="66" y="98" text-anchor="middle" font-size="14" font-weight="800" fill="#334155">SQLite</text>
+      <text x="66" y="118" text-anchor="middle" font-size="12" fill="#64748B">FTS5 / vec</text>
+      <rect x="16" y="154" width="100" height="58" rx="14" fill="#F1F5F9"/>
+      <text x="66" y="178" text-anchor="middle" font-size="14" font-weight="800" fill="#334155">Postgres</text>
+      <text x="66" y="198" text-anchor="middle" font-size="12" fill="#64748B">JSONB / pgvector</text>
+      <rect x="16" y="234" width="100" height="58" rx="14" fill="#F1F5F9"/>
+      <text x="66" y="258" text-anchor="middle" font-size="14" font-weight="800" fill="#334155">Indexes</text>
+      <text x="66" y="278" text-anchor="middle" font-size="12" fill="#64748B">FTS + Vector</text>
+    </g>
+
+    <g transform="translate(405 535)">
+      <rect width="380" height="62" rx="18" fill="#FFFFFF" stroke="#CBD5E1"/>
+      <text x="190" y="28" text-anchor="middle" font-size="16" font-weight="850" fill="#0F172A">Async Pipeline Manager</text>
+      <text x="190" y="48" text-anchor="middle" font-size="13" fill="#64748B">L1 / L2 / L3 异步演化，避免阻塞主对话</text>
+    </g>
+    <path d="M827 492 C800 530 774 552 785 566" stroke="#64748B" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arrow)"/>
+  </g>
+</svg>

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from only_one_memory.app.api import capture, health, search
+from oom.app.api import capture, health, search
 
 
 def create_app() -> FastAPI:

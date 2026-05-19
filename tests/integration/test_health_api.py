@@ -1,6 +1,6 @@
 from httpx import ASGITransport, AsyncClient
 
-from only_one_memory.app.main import create_app
+from oom.app.main import create_app
 
 
 async def test_health_returns_ok():
@@ -9,4 +9,4 @@ async def test_health_returns_ok():
         response = await client.get("/v1/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "service": "only-one-memory"}
+    assert response.json() == {"status": "ok", "service": "oom"}

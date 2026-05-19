@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from only_one_memory.memory_core.types import ConversationMessage
+from oom.memory_core.types import ConversationMessage
 
 
 def sanitize_messages(messages: list[ConversationMessage]) -> list[ConversationMessage]:

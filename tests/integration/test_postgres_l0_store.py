@@ -3,19 +3,19 @@ from datetime import datetime, timezone
 
 import pytest
 
-from only_one_memory.memory_core.config import PostgresConfig
-from only_one_memory.memory_core.stores.postgres_store import PostgresMemoryStore
-from only_one_memory.memory_core.types import L0Event
+from oom.memory_core.config import PostgresConfig
+from oom.memory_core.stores.postgres_store import PostgresMemoryStore
+from oom.memory_core.types import L0Event
 
 
 pytestmark = pytest.mark.skipif(
-    not os.getenv("ONLY_ONE_MEMORY_POSTGRES_DSN"),
-    reason="ONLY_ONE_MEMORY_POSTGRES_DSN is required for Postgres integration tests",
+    not os.getenv("OOM_POSTGRES_DSN"),
+    reason="OOM_POSTGRES_DSN is required for Postgres integration tests",
 )
 
 
 async def test_postgres_l0_upsert_and_fts_search():
-    store = PostgresMemoryStore(PostgresConfig(dsn=os.environ["ONLY_ONE_MEMORY_POSTGRES_DSN"]))
+    store = PostgresMemoryStore(PostgresConfig(dsn=os.environ["OOM_POSTGRES_DSN"]))
     await store.init()
     event = L0Event(
         id="evt_pg_1",

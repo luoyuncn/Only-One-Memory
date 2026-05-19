@@ -3,12 +3,12 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from only_one_memory.memory_core.capture.idempotency import IdempotencyCache, request_hash
-from only_one_memory.memory_core.capture.sanitizer import sanitize_messages
-from only_one_memory.memory_core.config import AppConfig
-from only_one_memory.memory_core.stores.base import MemoryStore
-from only_one_memory.memory_core.stores.factory import create_store
-from only_one_memory.memory_core.types import (
+from oom.memory_core.capture.idempotency import IdempotencyCache, request_hash
+from oom.memory_core.capture.sanitizer import sanitize_messages
+from oom.memory_core.config import AppConfig
+from oom.memory_core.stores.base import MemoryStore
+from oom.memory_core.stores.factory import create_store
+from oom.memory_core.types import (
     CaptureResult,
     CaptureTurnRequest,
     ConversationSearchRequest,

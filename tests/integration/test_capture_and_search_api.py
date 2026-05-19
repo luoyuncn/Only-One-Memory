@@ -1,10 +1,10 @@
 from httpx import ASGITransport, AsyncClient
 
-from only_one_memory.app.main import create_app
+from oom.app.main import create_app
 
 
 async def test_capture_turn_then_search_conversation(tmp_path, monkeypatch):
-    monkeypatch.setenv("ONLY_ONE_MEMORY_SQLITE_PATH", str(tmp_path / "memory.db"))
+    monkeypatch.setenv("OOM_SQLITE_PATH", str(tmp_path / "memory.db"))
     app = create_app()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         capture = await client.post(

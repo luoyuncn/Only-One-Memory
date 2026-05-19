@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from only_one_memory.memory_core.types import CaptureTurnRequest, ConversationMessage
+from oom.memory_core.types import CaptureTurnRequest, ConversationMessage
 
 
 def test_capture_request_requires_idempotency_key():

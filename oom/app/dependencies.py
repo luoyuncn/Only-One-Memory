@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import Request
 
-from only_one_memory.memory_core.config import AppConfig
-from only_one_memory.memory_core.core import MemoryCore
+from oom.memory_core.config import AppConfig
+from oom.memory_core.core import MemoryCore
 
 
 async def get_memory_core(request: Request) -> MemoryCore:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from only_one_memory.memory_core.types import ConversationSearchHit, L0Event, StoreCapabilities
+from oom.memory_core.types import ConversationSearchHit, L0Event, StoreCapabilities
 
 
 class MemoryStore(Protocol):

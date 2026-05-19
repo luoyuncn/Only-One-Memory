@@ -336,7 +336,7 @@ wheels = [
 ]
 
 [[package]]
-name = "only-one-memory"
+name = "oom"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

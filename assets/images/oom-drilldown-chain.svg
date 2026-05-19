@@ -1,0 +1,45 @@
+<svg width="1120" height="520" viewBox="0 0 1120 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Only-One-Memory traceable drill-down chain">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1120" y2="520"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#F8FAFC"/></linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#38BDF8"/><stop offset="1" stop-color="#A78BFA"/></linearGradient>
+    <filter id="shadow" x="-10%" y="-20%" width="120%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#0F172A" flood-opacity="0.12"/></filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#64748B"/></marker>
+  </defs>
+  <rect width="1120" height="520" rx="28" fill="url(#bg)"/>
+  <text x="560" y="58" text-anchor="middle" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC', sans-serif" font-size="34" font-weight="850" fill="#0F172A">可折叠，也可展开：每条记忆都能回到证据</text>
+  <text x="560" y="94" text-anchor="middle" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC', sans-serif" font-size="18" fill="#475569">高层用于理解与召回，底层用于考证与恢复；OOM 不把历史压成不可逆黑盒。</text>
+
+  <g transform="translate(65 165)" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC', sans-serif" filter="url(#shadow)">
+    <rect width="205" height="130" rx="24" fill="#F5F3FF" stroke="#C4B5FD"/>
+    <text x="102.5" y="45" text-anchor="middle" font-size="22" font-weight="850" fill="#4C1D95">L3 Persona</text>
+    <text x="102.5" y="76" text-anchor="middle" font-size="14" fill="#5B21B6">稳定画像</text>
+    <text x="102.5" y="99" text-anchor="middle" font-size="14" fill="#5B21B6">scene navigation</text>
+  </g>
+  <path d="M280 230 H358" stroke="#64748B" stroke-width="3" marker-end="url(#arrow)"/>
+  <g transform="translate(368 165)" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC', sans-serif" filter="url(#shadow)">
+    <rect width="205" height="130" rx="24" fill="#EEF2FF" stroke="#A5B4FC"/>
+    <text x="102.5" y="45" text-anchor="middle" font-size="22" font-weight="850" fill="#312E81">L2 Scenario</text>
+    <text x="102.5" y="76" text-anchor="middle" font-size="14" fill="#3730A3">Markdown 场景块</text>
+    <text x="102.5" y="99" text-anchor="middle" font-size="14" fill="#3730A3">可读 / 可改 / 可追溯</text>
+  </g>
+  <path d="M583 230 H661" stroke="#64748B" stroke-width="3" marker-end="url(#arrow)"/>
+  <g transform="translate(671 165)" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC', sans-serif" filter="url(#shadow)">
+    <rect width="205" height="130" rx="24" fill="#E0F2FE" stroke="#7DD3FC"/>
+    <text x="102.5" y="45" text-anchor="middle" font-size="22" font-weight="850" fill="#075985">L1 Atom</text>
+    <text x="102.5" y="76" text-anchor="middle" font-size="14" fill="#0369A1">结构化事实</text>
+    <text x="102.5" y="99" text-anchor="middle" font-size="14" fill="#0369A1">merge / conflict / skip</text>
+  </g>
+  <path d="M886 230 H964" stroke="#64748B" stroke-width="3" marker-end="url(#arrow)"/>
+  <g transform="translate(974 165)" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC', sans-serif" filter="url(#shadow)">
+    <rect width="205" height="130" rx="24" fill="#ECFEFF" stroke="#67E8F9"/>
+    <text x="102.5" y="45" text-anchor="middle" font-size="22" font-weight="850" fill="#155E75">L0 Evidence</text>
+    <text x="102.5" y="76" text-anchor="middle" font-size="14" fill="#0E7490">原始对话 / 工具日志</text>
+    <text x="102.5" y="99" text-anchor="middle" font-size="14" fill="#0E7490">event_id / result_ref</text>
+  </g>
+
+  <g transform="translate(140 365)" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC', sans-serif">
+    <rect width="840" height="58" rx="18" fill="url(#accent)" opacity="0.14" stroke="#93C5FD"/>
+    <text x="420" y="25" text-anchor="middle" font-size="16" font-weight="850" fill="#0F172A">Drill-down Chain</text>
+    <text x="420" y="45" text-anchor="middle" font-size="13" fill="#475569">Persona / Scenario / Atom 中只保留索引、摘要与置信度；证据始终在 L0 或 refs 中可恢复。</text>
+  </g>
+</svg>

@@ -5,7 +5,7 @@ import json
 
 from pydantic import BaseModel
 
-from only_one_memory.memory_core.types import CaptureResult
+from oom.memory_core.types import CaptureResult
 
 
 def request_hash(request: BaseModel) -> str:
