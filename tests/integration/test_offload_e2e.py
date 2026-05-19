@@ -83,3 +83,29 @@ async def test_create_offload_entry_rejects_ref_scope_mismatch(tmp_path, monkeyp
         await core.close()
 
     assert response.status_code == 404
+
+
+async def test_create_offload_entry_rejects_missing_ref(tmp_path, monkeypatch):
+    monkeypatch.setenv("OOM_DATA_DIR", str(tmp_path / "offload"))
+    monkeypatch.setenv("OOM_SQLITE_PATH", str(tmp_path / "memory.db"))
+    app = create_app()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/v1/offload/entries",
+            json={
+                "tenant_id": "default",
+                "session_id": "s1",
+                "tool_call_id": "call1",
+                "tool_name": "read_file",
+                "summary": "读取文件",
+                "score": 8,
+                "node_id": "N1",
+                "result_ref": "missing-ref",
+            },
+        )
+
+    core = getattr(app.state, "memory_core", None)
+    if core is not None:
+        await core.close()
+
+    assert response.status_code == 404

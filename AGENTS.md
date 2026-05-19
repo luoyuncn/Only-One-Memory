@@ -22,3 +22,6 @@
 - 2026-05-19：根据 code review 修复 Offload 跨租户 restore/get 泄露风险，补强 offload entries 的 user/agent 关联、删除事务、export/import refs 与 pipeline state 恢复，并新增 Alembic baseline migration。
 - 2026-05-19：根据复审继续修正 Alembic pipeline_jobs baseline、pipeline state 租户范围导出与 merge 导入，以及 offload entry 创建时的 ref scope 校验。
 - 2026-05-19：为集成测试增加自动关闭 create_app 产生的 MemoryCore，避免 aiosqlite 后台线程在测试结束后残留。
+- 2026-05-19：最终复审后将 PipelineManager 内部状态 key 改为 tenant_id + session_key，并让 L1 flush 查询带 tenant 过滤，消除同名 session_key 跨租户混写风险。
+- 2026-05-19：修正 pipeline state 导出格式，内部组合键不再泄露到租户导出，保持 import/export 使用原始 session_key。
+- 2026-05-19：补强 offload entry 创建校验，不允许写入不存在或跨 scope 的 result_ref。

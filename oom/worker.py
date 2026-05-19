@@ -10,7 +10,7 @@ from oom.memory_core.pipeline.scheduler import PipelineScheduler
 
 
 async def _l1_handler(core: MemoryCore, session_key: str, payload: dict) -> None:
-    await core.flush_l1_session(session_key)
+    await core.flush_l1_session(session_key, tenant_id=str(payload.get("tenant_id", "default")))
 
 
 async def main() -> None:

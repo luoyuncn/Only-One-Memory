@@ -77,7 +77,7 @@ async def create_entry(
     core: MemoryCore = Depends(get_memory_core),
 ) -> OffloadEntry:
     ref = _ref_store(request).get_ref(payload.result_ref)
-    if ref is not None and (ref.tenant_id != payload.tenant_id or ref.session_id != payload.session_id):
+    if ref is None or ref.tenant_id != payload.tenant_id or ref.session_id != payload.session_id:
         raise HTTPException(status_code=404, detail="offload ref not found")
     user_id = payload.user_id or (ref.user_id if ref is not None else "")
     agent_id = payload.agent_id or (ref.agent_id if ref is not None else "")

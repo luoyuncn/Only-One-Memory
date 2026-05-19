@@ -210,9 +210,9 @@ class MemoryCore:
         await self.initialize()
         return await self.store.list_offload_entries(tenant_id, session_id)
 
-    async def flush_l1_session(self, session_key: str) -> None:
+    async def flush_l1_session(self, session_key: str, tenant_id: str = "default") -> None:
         await self.initialize()
-        await self.pipeline.flush_session(session_key)
+        await self.pipeline.flush_session(session_key, tenant_id=tenant_id)
 
     @staticmethod
     def _event_id(request: CaptureTurnRequest, index: int) -> str:
@@ -225,8 +225,10 @@ class MemoryCore:
         checksum = float(sum(ord(char) for char in content) % 997)
         return [length, checksum, 1.0]
 
-    async def _run_l1_for_session(self, session_key: str) -> int:
-        events = await self.store.query_l0_for_l1(filters={"session_key": session_key}, limit=100)
+    async def _run_l1_for_session(self, session_key: str, tenant_id: str = "default") -> int:
+        events = await self.store.query_l0_for_l1(
+            filters={"tenant_id": tenant_id, "session_key": session_key}, limit=100
+        )
         count = 0
         for event in events:
             if event.role not in {"user", "assistant"}:
@@ -251,10 +253,10 @@ class MemoryCore:
             await self.store.upsert_l1(memory, embedding=self._embedding_for(memory.content))
             count += 1
         if count:
-            state = self.pipeline.state_for(session_key)
+            state = self.pipeline.state_for(session_key, tenant_id=tenant_id)
             if state is not None:
                 state.last_l1_cursor = events[-1].id
-            self.pipeline.trigger_l2(session_key)
+            self.pipeline.trigger_l2(session_key, tenant_id=tenant_id)
         return count
 
     async def _search_l1_hybrid(

@@ -29,3 +29,20 @@ async def test_flush_idle_sessions_runs_inactive_session():
     await manager.flush_idle_sessions()
 
     assert calls == ["s1"]
+
+
+async def test_same_session_key_is_isolated_by_tenant():
+    calls = []
+    manager = PipelineManager(
+        every_n_conversations=1,
+        enable_warmup=False,
+        l1_runner=lambda session_key, tenant_id: calls.append((tenant_id, session_key)),
+    )
+
+    await manager.notify_conversation("shared-session", tenant_id="tenant-a")
+    await manager.notify_conversation("shared-session", tenant_id="tenant-b")
+
+    assert calls == [("tenant-a", "shared-session"), ("tenant-b", "shared-session")]
+    assert manager.state_for("shared-session", tenant_id="tenant-a") is not None
+    assert manager.state_for("shared-session", tenant_id="tenant-b") is not None
+    assert set(manager.dump_states_for_tenant("tenant-a")) == {"shared-session"}
