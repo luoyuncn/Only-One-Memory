@@ -230,7 +230,7 @@ class SqliteMemoryStore:
             """,
             [*params, *like_params, limit],
         )
-        return await cursor.fetchall()
+        return list(await cursor.fetchall())
 
     @staticmethod
     def _event_from_row(row: aiosqlite.Row) -> L0Event:

@@ -6,6 +6,20 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+def _sqlite_vector_backend() -> Literal["sqlite_vec", "blob_bruteforce"]:
+    value = os.getenv("ONLY_ONE_MEMORY_SQLITE_VECTOR_BACKEND", "sqlite_vec")
+    if value == "blob_bruteforce":
+        return "blob_bruteforce"
+    return "sqlite_vec"
+
+
+def _store_backend() -> Literal["sqlite", "postgres"]:
+    value = os.getenv("ONLY_ONE_MEMORY_STORE_BACKEND", "sqlite")
+    if value == "postgres":
+        return "postgres"
+    return "sqlite"
+
+
 class ServerConfig(BaseModel):
     host: str = Field(default_factory=lambda: os.getenv("ONLY_ONE_MEMORY_HOST", "127.0.0.1"))
     port: int = Field(default_factory=lambda: int(os.getenv("ONLY_ONE_MEMORY_PORT", "8710")))
@@ -13,9 +27,7 @@ class ServerConfig(BaseModel):
 
 class SqliteConfig(BaseModel):
     path: str = Field(default_factory=lambda: os.getenv("ONLY_ONE_MEMORY_SQLITE_PATH", "only_one_memory.db"))
-    vector_backend: Literal["sqlite_vec", "blob_bruteforce"] = Field(
-        default_factory=lambda: os.getenv("ONLY_ONE_MEMORY_SQLITE_VECTOR_BACKEND", "sqlite_vec")
-    )
+    vector_backend: Literal["sqlite_vec", "blob_bruteforce"] = Field(default_factory=_sqlite_vector_backend)
     vector_dimension: int = Field(default_factory=lambda: int(os.getenv("ONLY_ONE_MEMORY_VECTOR_DIMENSION", "1536")))
 
 
@@ -25,9 +37,7 @@ class PostgresConfig(BaseModel):
 
 
 class StoreConfig(BaseModel):
-    backend: Literal["sqlite", "postgres"] = Field(
-        default_factory=lambda: os.getenv("ONLY_ONE_MEMORY_STORE_BACKEND", "sqlite")
-    )
+    backend: Literal["sqlite", "postgres"] = Field(default_factory=_store_backend)
     sqlite: SqliteConfig = Field(default_factory=SqliteConfig)
     postgres: PostgresConfig = Field(default_factory=PostgresConfig)
 
