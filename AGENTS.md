@@ -29,3 +29,4 @@
 - 2026-05-19：AppConfig 新增当前工作目录 .env 自动加载，真实环境变量优先；普通 pytest 未显式设置后端时继续默认 SQLite 隔离。
 - 2026-05-19：为当前生产代码补充中文模块/关键流程注释，新增 docs/code-reading-guide.md 代码观看指南，并在 README 文档入口中挂载。
 - 2026-05-19：补充配置测试覆盖当前目录 `.env` 自动读取与真实环境变量覆盖 `.env` 的优先级。
+- 2026-05-19：调整测试隔离策略，配置 `OOM_STORE_BACKEND=postgres` 时应用测试保持 Postgres 路径并清空 Postgres 表，不再由测试夹具强制回 SQLite。
