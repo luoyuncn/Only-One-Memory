@@ -4,6 +4,7 @@ import inspect
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 
+from oom.memory_core.observability.metrics import increment
 from oom.memory_core.pipeline.checkpoint import PipelineSessionState
 
 
@@ -129,3 +130,4 @@ class PipelineManager:
             raise
         if state is not None:
             state.l1_retry_count = 0
+        increment("oom_l1_extraction_total")

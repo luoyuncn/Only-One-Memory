@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 
+from oom.memory_core.observability.metrics import increment
 from oom.memory_core.pipeline.jobs import PipelineJobStore
 
 
@@ -27,6 +28,7 @@ class PipelineScheduler:
             await self.job_store.fail(job.id)
             raise
         await self.job_store.complete(job.id)
+        increment("oom_pipeline_jobs_total")
         return True
 
     async def run_forever(self, poll_interval_seconds: float = 1.0) -> None:

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from oom.memory_core.capture.idempotency import IdempotencyCache, request_hash
 from oom.memory_core.capture.sanitizer import sanitize_messages
 from oom.memory_core.config import AppConfig
+from oom.memory_core.observability.metrics import increment
 from oom.memory_core.offload.types import OffloadEntry
 from oom.memory_core.pipeline.checkpoint import CheckpointStore
 from oom.memory_core.pipeline.manager import PipelineManager
@@ -92,10 +93,12 @@ class MemoryCore:
         )
         self._idempotency.put(request.idempotency_key, digest, result)
         await self.pipeline.notify_conversation(request.session_key)
+        increment("oom_capture_total")
         return result
 
     async def search_conversations(self, request: ConversationSearchRequest) -> ConversationSearchResult:
         await self.initialize()
+        increment("oom_search_total")
         filters = {
             "tenant_id": request.tenant_id,
             "user_id": request.user_id,
@@ -108,6 +111,7 @@ class MemoryCore:
 
     async def search_memories(self, request: MemorySearchRequest) -> MemorySearchResult:
         await self.initialize()
+        increment("oom_search_total")
         filters = {
             "tenant_id": request.tenant_id,
             "user_id": request.user_id,
@@ -120,6 +124,7 @@ class MemoryCore:
 
     async def before_recall(self, request: RecallBeforeRequest) -> RecallBeforeResult:
         await self.initialize()
+        increment("oom_recall_total")
         memory_request = MemorySearchRequest(
             tenant_id=request.tenant_id,
             user_id=request.user_id,

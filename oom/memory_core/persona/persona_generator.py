@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from oom.memory_core.observability.metrics import increment
 from oom.memory_core.persona.tool_runner import PersonaToolRunner
 from oom.memory_core.prompts.persona_generation import build_persona_generation_prompt
 from oom.memory_core.scene.scene_navigation import build_scene_navigation, strip_scene_navigation
@@ -37,4 +38,5 @@ class PersonaGenerator:
         generated = strip_scene_navigation(tools.read_persona())
         after = f"{generated}\n\n{build_scene_navigation(scenes)}\n"
         await tools.write_persona(after)
+        increment("oom_l3_persona_generation_total")
         return PersonaGenerationResult(updated=after != before, path=str(self.data_dir / "persona.md"))

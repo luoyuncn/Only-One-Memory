@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Protocol
 from uuid import uuid5, NAMESPACE_URL
 
+from oom.memory_core.observability.metrics import increment
 from oom.memory_core.prompts.scene_extraction import build_scene_extraction_prompt
 from oom.memory_core.scene.scene_format import parse_scene_block
 from oom.memory_core.scene.scene_index import build_scene_index
@@ -55,6 +56,7 @@ class SceneExtractor:
         after = self._scene_files()
         self._validate_scenes(after)
         await self._sync_store(after, memories)
+        increment("oom_l2_scene_generation_total")
         return SceneExtractionResult(
             scenes_created=len(set(after) - set(before)),
             scenes_updated=len(set(after) & set(before)),

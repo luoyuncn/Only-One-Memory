@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 
 from oom.app.api import admin, capture, health, offload, profiles, recall, scenes, search
 from oom.memory_core.config import AppConfig
+from oom.memory_core.observability.metrics import render_prometheus_text
 
 
 def create_app() -> FastAPI:
@@ -16,4 +17,9 @@ def create_app() -> FastAPI:
     app.include_router(scenes.router, prefix="/v1")
     app.include_router(profiles.router, prefix="/v1")
     app.include_router(offload.router, prefix="/v1")
+
+    @app.get("/v1/metrics")
+    async def metrics() -> Response:
+        return Response(content=render_prometheus_text(), media_type="text/plain; version=0.0.4")
+
     return app

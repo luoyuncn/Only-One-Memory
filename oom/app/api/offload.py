@@ -17,6 +17,7 @@ from oom.memory_core.offload.types import (
     RestoreOffloadRequest,
     RestoreOffloadResult,
 )
+from oom.memory_core.observability.metrics import increment
 
 router = APIRouter()
 
@@ -58,7 +59,9 @@ async def restore(
     if result_ref is None:
         raise HTTPException(status_code=400, detail="result_ref or node_id is required")
     try:
-        return OffloadRestoreService(_ref_store(request)).restore_by_ref(result_ref)
+        result = OffloadRestoreService(_ref_store(request)).restore_by_ref(result_ref)
+        increment("oom_offload_restore_total")
+        return result
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="offload ref not found") from exc
 
