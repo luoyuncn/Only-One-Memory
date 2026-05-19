@@ -24,6 +24,8 @@ Only-One-Memory 是一个 Python 原生的 Agent Memory Runtime。它应该尽�
 - Pipeline 异步演化记忆。
 - Store adapters 保持 SQLite 和 Postgres 可切换。
 - Context offload 压缩长任务工具日志，同时不丢失可追溯性。
+- 项目必须使用 `uv` 管理 Python 版本、虚拟环境、依赖、锁文件和命令执行；不使用裸 `pip`、Poetry 或 PDM 作为项目管理入口。
+- 编写代码时，注释默认使用中文；只有外部协议字段、第三方 API 名称、固定错误文本或上游英文术语需要精确保留时，才在注释中使用英文。
 
 ## 2. 参照系统
 
@@ -188,8 +190,25 @@ only_one_memory/
   docs/
     design/
     attribution/
+  .python-version
   pyproject.toml
+  uv.lock
 ```
+
+项目管理约束：
+
+- 使用 `uv init --bare --name only-one-memory --vcs none` 初始化项目管理文件，并使用 `uv python pin 3.11` 固定 Python 版本；包目录按本文档的 `only_one_memory/` 结构创建。
+- 使用 `uv add ...` 和 `uv add --dev ...` 管理依赖；所有依赖变更必须更新 `pyproject.toml` 与 `uv.lock`。
+- 使用 `uv sync` 创建和同步本地环境。
+- 使用 `uv run ...` 执行测试、lint、type check、迁移和开发服务，例如 `uv run pytest`、`uv run ruff check .`、`uv run pyright`。
+- CI 和本地文档中的命令必须以 `uv` 为统一入口，避免出现裸 `pytest`、`ruff`、`pyright`、`alembic` 命令。
+- `.python-version` 固定项目 Python 主版本，V0.1 默认 `3.11`。
+
+代码注释约束：
+
+- 业务代码、测试辅助代码和迁移脚本中的人工注释默认使用中文。
+- 注释应解释业务意图、约束、降级原因或上游兼容背景，避免写“给变量赋值”这类重复代码表面的注释。
+- TencentDB-Agent-Memory 来源映射注释可以保留英文路径和 License 名称，但说明文字使用中文。
 
 ## 6. MemoryCore
 
@@ -1017,10 +1036,11 @@ API 测试：
 
 质量门禁：
 
-- ruff
-- mypy 或 pyright
-- pytest
-- migration smoke tests
+- `uv lock --check`
+- `uv run ruff check .`
+- `uv run pyright`
+- `uv run pytest`
+- `uv run alembic` 或迁移冒烟测试命令
 - OpenAPI generation check
 
 ## 17. 实现计划
@@ -1028,6 +1048,7 @@ API 测试：
 ### V0.1 REST + MemoryCore + SQLite/Postgres L0
 
 - FastAPI skeleton
+- uv project skeleton：`.python-version`、`pyproject.toml`、`uv.lock`
 - `MemoryCore` lifecycle
 - config
 - SQLite basic schema + FTS5 + sqlite-vec
