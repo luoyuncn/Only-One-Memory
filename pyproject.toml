@@ -10,6 +10,7 @@ dependencies = [
     "pydantic>=2",
     "sqlalchemy>=2.0.49",
     "sqlite-vec>=0.1.9",
+    "uvicorn[standard]>=0.38.0",
 ]
 
 [dependency-groups]

@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: oom
+      POSTGRES_USER: oom
+      POSTGRES_PASSWORD: oom
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oom -d oom"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      OOM_STORE_BACKEND: postgres
+      OOM_POSTGRES_DSN: postgresql://oom:oom@postgres:5432/oom
+      OOM_DATA_DIR: /data/offload
+      ONLY_ONE_MEMORY_API_KEY: change-me
+    ports:
+      - "8710:8710"
+    volumes:
+      - offload-data:/data/offload
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  offload-data:
