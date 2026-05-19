@@ -1,3 +1,5 @@
+"""L1 记忆去重与合并策略。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

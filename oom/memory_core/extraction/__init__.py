@@ -1,1 +1,1 @@
-"""L1 extraction pipeline."""
+"""L1 原子记忆抽取管线。"""

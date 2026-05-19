@@ -1,3 +1,5 @@
+"""对话采集 API，将外部 turn 写入 L0 原始事件层。"""
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from oom.app.dependencies import get_memory_core

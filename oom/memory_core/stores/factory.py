@@ -1,3 +1,5 @@
+"""根据配置创建 SQLite 或 Postgres store。"""
+
 from __future__ import annotations
 
 from oom.memory_core.config import StoreConfig

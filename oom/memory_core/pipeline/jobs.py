@@ -1,3 +1,5 @@
+"""Postgres 后台任务队列，支持 worker claim/complete/fail 生命周期。"""
+
 from __future__ import annotations
 
 import json
@@ -11,6 +13,8 @@ import asyncpg
 
 @dataclass(frozen=True)
 class PipelineJob:
+    """worker 领取到的一条后台任务快照。"""
+
     id: str
     stage: str
     session_key: str
@@ -19,6 +23,11 @@ class PipelineJob:
 
 
 class PipelineJobStore:
+    """基于 Postgres 的轻量任务队列。
+
+    `claim_next` 使用 `FOR UPDATE SKIP LOCKED`，因此多个 worker 可以并发领取任务而不互相阻塞。
+    """
+
     def __init__(self, dsn: str) -> None:
         self.dsn = self._normalize_dsn(dsn)
         self._pool: asyncpg.Pool | None = None
@@ -54,6 +63,7 @@ class PipelineJobStore:
             self._pool = None
 
     async def enqueue(self, stage: str, session_key: str, payload: dict[str, Any]) -> str:
+        """写入 pending 任务，默认立即可运行。"""
         pool = self._require_pool()
         job_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
@@ -73,6 +83,7 @@ class PipelineJobStore:
         return job_id
 
     async def claim_next(self, worker_id: str) -> PipelineJob | None:
+        """原子领取下一条可运行任务，并标记 running/locked_by。"""
         pool = self._require_pool()
         async with pool.acquire() as conn:
             async with conn.transaction():
@@ -115,6 +126,7 @@ class PipelineJobStore:
         await self._set_status(job_id, "failed")
 
     async def _set_status(self, job_id: str, status: str) -> None:
+        """结束任务生命周期，同时释放锁字段。"""
         pool = self._require_pool()
         async with pool.acquire() as conn:
             await conn.execute(

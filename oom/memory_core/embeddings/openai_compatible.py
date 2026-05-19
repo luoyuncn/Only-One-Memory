@@ -1,3 +1,5 @@
+"""OpenAI-compatible embedding 客户端，适配兼容 /embeddings 的服务。"""
+
 from __future__ import annotations
 
 import asyncio

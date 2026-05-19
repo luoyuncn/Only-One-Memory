@@ -1,3 +1,5 @@
+"""召回 API，在 Agent 回复前组装可注入的动态上下文。"""
+
 from fastapi import APIRouter, Depends
 
 from oom.app.dependencies import get_memory_core

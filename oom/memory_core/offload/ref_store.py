@@ -1,3 +1,5 @@
+"""文件系统 refs 存储，保存 offload 原文并防止路径逃逸。"""
+
 from __future__ import annotations
 
 import hashlib
@@ -10,6 +12,11 @@ from oom.memory_core.offload.types import OffloadRef
 
 
 class OffloadRefStore:
+    """以 JSON 文件保存被卸载的大块原文。
+
+    数据库只保存 result_ref/node_id 等轻量索引；真正的大文本留在 refs 目录中，按需恢复。
+    """
+
     def __init__(self, data_dir: str | Path):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -25,6 +32,7 @@ class OffloadRefStore:
         content: str,
         metadata: dict | None = None,
     ) -> OffloadRef:
+        """创建 ref 文件，并记录 hash 便于后续核对内容完整性。"""
         ref = OffloadRef(
             id=str(uuid4()),
             tenant_id=tenant_id,
@@ -42,6 +50,7 @@ class OffloadRefStore:
         return ref
 
     def get_ref(self, ref_id: str) -> OffloadRef | None:
+        """按 ref_id 读取原文，缺失时返回 None。"""
         path = self._path_for(ref_id)
         if not path.exists():
             return None
@@ -53,6 +62,7 @@ class OffloadRefStore:
         return ref
 
     def export_refs(self, tenant_id: str | None = None) -> list[dict]:
+        """导出 refs，可按租户过滤，供 admin export 合并进备份包。"""
         refs: list[dict] = []
         for path in sorted(self.data_dir.glob("*.json")):
             ref = OffloadRef.model_validate_json(path.read_text(encoding="utf-8"))
@@ -62,6 +72,7 @@ class OffloadRefStore:
         return refs
 
     def import_refs(self, refs: list[dict], tenant_id: str) -> int:
+        """导入 refs 时强制改写 tenant_id，避免备份跨租户污染。"""
         count = 0
         for item in refs:
             ref = OffloadRef.model_validate(item).model_copy(update={"tenant_id": tenant_id})
@@ -80,6 +91,7 @@ class OffloadRefStore:
         return refs
 
     def delete_refs_for_user(self, tenant_id: str, user_id: str) -> int:
+        """删除指定用户的文件型 refs，配合数据库删除服务完成全量清理。"""
         count = 0
         for path in sorted(self.data_dir.glob("*.json")):
             ref = OffloadRef.model_validate_json(path.read_text(encoding="utf-8"))
@@ -89,6 +101,7 @@ class OffloadRefStore:
         return count
 
     def _path_for(self, ref_id: str) -> Path:
+        """把 ref_id 解析到数据目录内，拒绝任何路径穿越。"""
         self._validate_ref_id(ref_id)
         path = (self.data_dir / f"{ref_id}.json").resolve()
         data_dir = self.data_dir.resolve()

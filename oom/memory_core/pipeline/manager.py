@@ -1,3 +1,5 @@
+"""内存态 Pipeline 调度器，按会话触发 L1/L2/L3 后台步骤。"""
+
 from __future__ import annotations
 
 import inspect
@@ -14,6 +16,12 @@ L3Runner = Callable[[], Awaitable[object] | object]
 
 
 class PipelineManager:
+    """会话级管线状态机。
+
+    它不直接知道数据库细节，只负责根据对话次数、空闲时间和显式 flush 决定何时调用
+    L1/L2/L3 runner。内部 key 必须包含 tenant_id，避免同名 session_key 跨租户串线。
+    """
+
     def __init__(
         self,
         every_n_conversations: int = 5,
@@ -36,6 +44,7 @@ class PipelineManager:
         self._l3_pending = False
 
     async def notify_conversation(self, session_key: str, tenant_id: str = "default") -> None:
+        """收到新对话后更新计数，并在命中阈值时触发 L1。"""
         key = self._state_key(tenant_id, session_key)
         state = self._states.get(key)
         if state is None:
@@ -50,6 +59,7 @@ class PipelineManager:
             await self._run_l1(session_key, tenant_id=tenant_id)
 
     async def flush_session(self, session_key: str, tenant_id: str = "default") -> None:
+        """强制把指定 session 推进一次 L1，常用于 idle flush 或管理入口。"""
         key = self._state_key(tenant_id, session_key)
         if key not in self._states:
             self._states[key] = PipelineSessionState.new(
@@ -58,6 +68,7 @@ class PipelineManager:
         await self._run_l1(session_key, tenant_id=tenant_id)
 
     async def flush_idle_sessions(self, now: datetime | None = None) -> None:
+        """扫描长时间无活动的 session，避免低频会话永远达不到批处理阈值。"""
         if self.idle_timeout_seconds is None:
             return
         current = now or datetime.now(timezone.utc)
@@ -70,12 +81,14 @@ class PipelineManager:
         return self._states.get(self._state_key(tenant_id, session_key))
 
     def load_states(self, states: dict[str, PipelineSessionState]) -> None:
+        """从 checkpoint 恢复内部状态，恢复时重建 tenant + session 组合键。"""
         self._states = {self._state_key(state.tenant_id, state.session_key): state for state in states.values()}
 
     def dump_states(self) -> dict[str, PipelineSessionState]:
         return dict(self._states)
 
     def dump_states_for_tenant(self, tenant_id: str) -> dict[str, PipelineSessionState]:
+        """导出租户状态时返回原始 session_key，避免内部组合键泄露到备份格式。"""
         return {state.session_key: state for state in self._states.values() if state.tenant_id == tenant_id}
 
     def merge_states(self, states: dict[str, PipelineSessionState]) -> None:
@@ -113,6 +126,7 @@ class PipelineManager:
         self._l3_running = running
 
     async def _drain_l3(self) -> None:
+        """串行执行 L3，运行中再次触发只保留 pending 标记。"""
         if self._l3_running or not self._l3_pending:
             return
         self._l3_pending = False
@@ -126,11 +140,13 @@ class PipelineManager:
             self._l3_running = False
 
     def _should_run_l1(self, state: PipelineSessionState) -> bool:
+        """判断是否达到 warmup 或批量阈值。"""
         if state.warmup_threshold and state.conversation_count == state.warmup_threshold:
             return True
         return state.conversation_count % self.every_n_conversations == 0
 
     async def _run_l1(self, session_key: str, tenant_id: str = "default") -> None:
+        """调用外部注入的 L1 runner，并维护重试计数和指标。"""
         if self.l1_runner is None:
             return
         state = self._states.get(self._state_key(tenant_id, session_key))
@@ -147,6 +163,7 @@ class PipelineManager:
         increment("oom_l1_extraction_total")
 
     def _call_l1_runner(self, session_key: str, tenant_id: str) -> object:
+        """兼容旧 runner(session_key) 与新 runner(session_key, tenant_id) 两种签名。"""
         if self.l1_runner is None:
             return None
         try:

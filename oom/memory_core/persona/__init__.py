@@ -1,1 +1,1 @@
-"""L3 persona generation."""
+"""L3 画像生成能力。"""

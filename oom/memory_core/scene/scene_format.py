@@ -1,3 +1,5 @@
+"""场景 Markdown 的解析、格式化与导航块处理。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -82,4 +84,3 @@ def _parse_meta_lines(lines: list[str], filename: str) -> SceneMeta:
         summary=values["summary"],
         heat=heat,
     )
-

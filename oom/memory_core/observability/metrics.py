@@ -1,3 +1,5 @@
+"""内存态 Prometheus 指标收集器，覆盖采集、召回和管线计数。"""
+
 from __future__ import annotations
 
 from collections import defaultdict

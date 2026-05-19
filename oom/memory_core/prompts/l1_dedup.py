@@ -1,3 +1,5 @@
+"""L1 去重 prompt。"""
+
 from __future__ import annotations
 
 from oom.memory_core.prompts.attribution import PROMPT_LICENSE, TENCENTDB_AGENT_MEMORY_REPO

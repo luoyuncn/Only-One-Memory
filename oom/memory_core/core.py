@@ -1,3 +1,5 @@
+"""MemoryCore 是业务入口，串联采集、检索、召回、场景、画像和管线。"""
+
 from __future__ import annotations
 
 import uuid
@@ -34,6 +36,12 @@ from oom.memory_core.types import (
 
 
 class MemoryCore:
+    """唯一稳定业务入口。
+
+    外层 HTTP、worker 或未来 SDK 都应通过这里访问记忆能力；这样 API 协议、
+    后台任务和存储实现可以独立演进，而不会把业务规则散落在路由里。
+    """
+
     def __init__(self, config: AppConfig, store: MemoryStore | None = None) -> None:
         self.config = config
         self.store = store or create_store(config.store)
@@ -48,6 +56,7 @@ class MemoryCore:
         self._checkpoint_store = CheckpointStore(config.pipeline.checkpoint_path) if config.pipeline.checkpoint_path else None
 
     async def initialize(self) -> None:
+        """懒初始化 store 和 checkpoint，避免测试/导入模块时立即打开连接。"""
         if not self._initialized:
             await self.store.init()
             if self._checkpoint_store is not None:
@@ -55,6 +64,7 @@ class MemoryCore:
             self._initialized = True
 
     async def close(self) -> None:
+        """关闭前保存 pipeline 状态，保证进程重启后能继续按 session 推进。"""
         if self._initialized:
             if self._checkpoint_store is not None:
                 await self._checkpoint_store.save(self.pipeline.dump_states())
@@ -62,6 +72,10 @@ class MemoryCore:
             self._initialized = False
 
     async def commit_turn(self, request: CaptureTurnRequest) -> CaptureResult:
+        """写入一次对话 turn。
+
+        这里做三件事：幂等去重、L0 原始事件落库、通知 pipeline 可能需要抽取 L1。
+        """
         await self.initialize()
         digest = request_hash(request)
         cached = self._idempotency.get(request.idempotency_key, digest)
@@ -71,6 +85,7 @@ class MemoryCore:
         recorded_at = datetime.now(timezone.utc)
         event_ids = []
         for index, message in enumerate(sanitize_messages(request.messages)):
+            # event_id 由请求稳定字段推导，配合 upsert 能让重复提交保持可预测结果。
             event_id = self._event_id(request, index)
             event = L0Event(
                 id=event_id,
@@ -99,6 +114,7 @@ class MemoryCore:
         return result
 
     async def search_conversations(self, request: ConversationSearchRequest) -> ConversationSearchResult:
+        """搜索 L0 原始对话，用于证据下钻和全文检索。"""
         await self.initialize()
         increment("oom_search_total")
         filters = {
@@ -112,6 +128,7 @@ class MemoryCore:
         return ConversationSearchResult(total=len(hits), hits=hits)
 
     async def search_memories(self, request: MemorySearchRequest) -> MemorySearchResult:
+        """搜索 L1 原子记忆，优先走 FTS + Vector 的混合召回。"""
         await self.initialize()
         increment("oom_search_total")
         filters = {
@@ -125,6 +142,10 @@ class MemoryCore:
         return MemorySearchResult(total=len(hits), hits=hits)
 
     async def before_recall(self, request: RecallBeforeRequest) -> RecallBeforeResult:
+        """Agent 回复前召回动态上下文。
+
+        召回同时查 L1 和 L0：L1 提供结构化事实，L0 提供更接近原文的证据片段。
+        """
         await self.initialize()
         increment("oom_recall_total")
         memory_request = MemorySearchRequest(
@@ -226,6 +247,11 @@ class MemoryCore:
         return [length, checksum, 1.0]
 
     async def _run_l1_for_session(self, session_key: str, tenant_id: str = "default") -> int:
+        """最小 L1 pipeline。
+
+        当前实现把 user/assistant 事件直接映射为 episodic memory；后续 LLM 抽取器可在
+        这个边界替换进去，而 API 和 store 契约不需要变化。
+        """
         events = await self.store.query_l0_for_l1(
             filters={"tenant_id": tenant_id, "session_key": session_key}, limit=100
         )
@@ -256,12 +282,18 @@ class MemoryCore:
             state = self.pipeline.state_for(session_key, tenant_id=tenant_id)
             if state is not None:
                 state.last_l1_cursor = events[-1].id
+            # L1 有新增后只标记 L2 待处理，由后续调度器决定何时归纳场景。
             self.pipeline.trigger_l2(session_key, tenant_id=tenant_id)
         return count
 
     async def _search_l1_hybrid(
         self, query: str, limit: int, filters: dict[str, str | None]
     ) -> list:
+        """融合关键词与向量检索。
+
+        Store 暴露能力标记，MemoryCore 根据后端能力自动降级到 FTS，避免调用方关心
+        SQLite/Postgres 的差异。
+        """
         capabilities = self.store.capabilities()
         fts_hits = await self.store.search_l1_fts(query, limit=limit, filters=filters)
         if not capabilities.vector_search:
@@ -269,6 +301,7 @@ class MemoryCore:
 
         vector_hits = await self.store.search_l1_vector(self._embedding_for(query), limit=limit, filters=filters)
         hits_by_id = {hit.memory.id: hit for hit in [*fts_hits, *vector_hits]}
+        # RRF 只需要各路排序的 ID 列表，最终再回填原始 hit，保留业务对象结构。
         merged = rrf_merge(
             [[hit.memory.id for hit in fts_hits], [hit.memory.id for hit in vector_hits]],
             limit=limit,

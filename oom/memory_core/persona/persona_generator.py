@@ -1,3 +1,5 @@
+"""基于场景 Markdown 生成 L3 persona 文档。"""
+
 from __future__ import annotations
 
 import json
@@ -12,21 +14,28 @@ from oom.memory_core.scene.scene_navigation import build_scene_navigation, strip
 
 
 class PersonaLlmRunner(Protocol):
+    """Persona 生成依赖的工具调用式 LLM Runner 协议。"""
+
     async def run_with_tools(self, system_prompt: str, user_prompt: str, tools: PersonaToolRunner) -> str: ...
 
 
 @dataclass(frozen=True)
 class PersonaGenerationResult:
+    """一次 persona 生成的变更摘要。"""
+
     updated: bool
     path: str
 
 
 class PersonaGenerator:
+    """把 L2 场景压缩成 L3 长期画像。"""
+
     def __init__(self, data_dir: str | Path, llm_runner: PersonaLlmRunner) -> None:
         self.data_dir = Path(data_dir)
         self.llm_runner = llm_runner
 
     async def generate(self, scenes: list[dict[str, Any]]) -> PersonaGenerationResult:
+        """生成 persona，并在末尾追加场景导航，方便从画像下钻到 L2。"""
         self.data_dir.mkdir(parents=True, exist_ok=True)
         tools = PersonaToolRunner(self.data_dir)
         before = tools.read_persona()

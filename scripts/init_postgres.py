@@ -1,3 +1,5 @@
+"""初始化 Postgres schema 的脚本入口，复用 PostgresMemoryStore 建表逻辑。"""
+
 from __future__ import annotations
 
 import asyncio

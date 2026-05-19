@@ -25,3 +25,5 @@
 - 2026-05-19：最终复审后将 PipelineManager 内部状态 key 改为 tenant_id + session_key，并让 L1 flush 查询带 tenant 过滤，消除同名 session_key 跨租户混写风险。
 - 2026-05-19：修正 pipeline state 导出格式，内部组合键不再泄露到租户导出，保持 import/export 使用原始 session_key。
 - 2026-05-19：补强 offload entry 创建校验，不允许写入不存在或跨 scope 的 result_ref。
+- 2026-05-19：新增 scripts/test_postgres.ps1，读取 .env 后初始化 Postgres schema 并运行 Postgres 专项测试入口。
+- 2026-05-19：为当前生产代码补充中文模块/关键流程注释，新增 docs/code-reading-guide.md 代码观看指南，并在 README 文档入口中挂载。

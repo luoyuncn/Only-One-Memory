@@ -1,3 +1,5 @@
+"""把检索命中组装为可注入 Agent 上下文的文本块。"""
+
 from __future__ import annotations
 
 from oom.memory_core.types import ConversationSearchHit, MemorySearchHit

@@ -1,3 +1,5 @@
+"""Context Offload API：保存 refs、登记 entries，并按引用恢复原文。"""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -23,6 +25,7 @@ router = APIRouter()
 
 
 def _ref_store(request: Request) -> OffloadRefStore:
+    """把文件型 ref store 缓存在 app.state，避免每个请求重复创建目录对象。"""
     store = getattr(request.app.state, "offload_ref_store", None)
     if store is None:
         config = getattr(request.app.state, "config", AppConfig())
@@ -39,6 +42,7 @@ async def create_ref(payload: CreateOffloadRefRequest, request: Request) -> Offl
 @router.get("/offload/refs/{ref_id}", response_model=OffloadRef)
 async def get_ref(ref_id: str, tenant_id: str, session_id: str, request: Request) -> OffloadRef:
     ref = _ref_store(request).get_ref(ref_id)
+    # ref 是文件型存储，必须在 API 层再次校验租户和会话，防止跨 scope 读取。
     if ref is None or ref.tenant_id != tenant_id or ref.session_id != session_id:
         raise HTTPException(status_code=404, detail="offload ref not found")
     return ref
@@ -51,6 +55,7 @@ async def restore(
 ) -> RestoreOffloadResult:
     result_ref = payload.result_ref
     if result_ref is None and payload.node_id is not None:
+        # node_id 只是上下文里的轻量节点名，真正恢复时要先映射回 result_ref。
         core = await get_memory_core(request)
         entries = await core.list_offload_entries(payload.tenant_id, payload.session_id)
         match = next((entry for entry in entries if entry.node_id == payload.node_id), None)
@@ -77,6 +82,7 @@ async def create_entry(
     core: MemoryCore = Depends(get_memory_core),
 ) -> OffloadEntry:
     ref = _ref_store(request).get_ref(payload.result_ref)
+    # entry 只能指向同租户同会话的 ref，避免把别人的大块原文挂到当前会话。
     if ref is None or ref.tenant_id != payload.tenant_id or ref.session_id != payload.session_id:
         raise HTTPException(status_code=404, detail="offload ref not found")
     user_id = payload.user_id or (ref.user_id if ref is not None else "")

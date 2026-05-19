@@ -1,3 +1,5 @@
+"""Pipeline session 状态与 checkpoint 文件持久化。"""
+
 from __future__ import annotations
 
 import json

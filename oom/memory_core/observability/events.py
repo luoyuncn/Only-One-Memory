@@ -1,3 +1,5 @@
+"""结构化事件输出 helper，方便日志管道按事件类型收集运行轨迹。"""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

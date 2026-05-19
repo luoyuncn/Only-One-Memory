@@ -1,3 +1,5 @@
+"""把 L0 对话事件转成 L1 原子记忆的 LLM 抽取器。"""
+
 from __future__ import annotations
 
 import json
@@ -14,10 +16,14 @@ from oom.memory_core.types import MemoryAtom, MemoryType
 
 
 class LlmRunner(Protocol):
+    """L1 抽取只依赖 complete 能力，不绑定具体 LLM SDK。"""
+
     async def complete(self, system_prompt: str, user_prompt: str) -> str: ...
 
 
 class CandidateMemory(BaseModel):
+    """LLM 返回的候选记忆，进入系统前还不是完整 MemoryAtom。"""
+
     content: str
     type: MemoryType = "episodic"
     priority: int = Field(default=50, ge=0, le=100)
@@ -27,16 +33,21 @@ class CandidateMemory(BaseModel):
 
 @dataclass(frozen=True)
 class L1ExtractionResult:
+    """一次 L1 抽取的结构化结果。"""
+
     scene_names: list[str]
     memories: list[MemoryAtom]
 
 
 class L1Extractor:
+    """把 LLM 输出规范化为带证据来源的 MemoryAtom。"""
+
     def __init__(self, llm_runner: LlmRunner, tenant_id: str = "default") -> None:
         self.llm_runner = llm_runner
         self.tenant_id = tenant_id
 
     async def extract(self, new_messages: list[dict[str, Any]]) -> L1ExtractionResult:
+        """调用 LLM 抽取场景与记忆，并把 message id 映射成 source_event_ids。"""
         system_prompt = build_l1_extraction_prompt()
         raw = await self.llm_runner.complete(system_prompt=system_prompt, user_prompt=json.dumps(new_messages, ensure_ascii=False))
         scenes = parse_json_array(raw)
@@ -87,5 +98,6 @@ class L1Extractor:
 
     @staticmethod
     def _memory_id(content: str, source_ids: list[str]) -> str:
+        """用内容和来源生成稳定 ID，方便重复抽取时 upsert。"""
         raw = f"{content}:{','.join(source_ids)}"
         return str(uuid.uuid5(uuid.NAMESPACE_URL, raw))

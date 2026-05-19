@@ -1,3 +1,5 @@
+"""从 L1 原子记忆归纳 L2 场景 Markdown。"""
+
 from __future__ import annotations
 
 import json
@@ -16,17 +18,23 @@ from oom.memory_core.types import SceneBlock
 
 
 class SceneLlmRunner(Protocol):
+    """场景抽取依赖的工具调用式 LLM Runner 协议。"""
+
     async def run_with_tools(self, system_prompt: str, user_prompt: str, tools: SceneToolRunner) -> str: ...
 
 
 @dataclass(frozen=True)
 class SceneExtractionResult:
+    """一次 L2 场景生成的变更摘要。"""
+
     scenes_created: int
     scenes_updated: int
     scene_files: list[str]
 
 
 class SceneExtractor:
+    """将 L1 记忆归纳成场景文件，并可同步到 Store。"""
+
     def __init__(
         self,
         data_dir: str | Path,
@@ -40,6 +48,10 @@ class SceneExtractor:
         self.store = store
 
     async def extract(self, memories: list[dict[str, Any]]) -> SceneExtractionResult:
+        """运行场景抽取。
+
+        LLM 只能通过 SceneToolRunner 读写允许的 Markdown 文件，避免任意文件访问。
+        """
         self.data_dir.mkdir(parents=True, exist_ok=True)
         before = self._scene_files()
         runner = SceneToolRunner(root=self.data_dir, readable_files=set(before))
@@ -80,6 +92,7 @@ class SceneExtractor:
             parse_scene_block((self.data_dir / filename).read_text(encoding="utf-8"), filename=filename)
 
     async def _sync_store(self, filenames: list[str], memories: list[dict[str, Any]]) -> None:
+        """把文件系统场景同步回 L2 store，供 API 和召回使用。"""
         if self.store is None:
             return
         tenant_id = str(memories[0].get("tenant_id", "default")) if memories else "default"

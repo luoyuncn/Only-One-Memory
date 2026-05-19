@@ -1,3 +1,5 @@
+"""Alembic 迁移运行入口，目前用于承接手写 baseline migration。"""
+
 from __future__ import annotations
 
 import asyncio

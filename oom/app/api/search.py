@@ -1,3 +1,5 @@
+"""搜索 API，暴露 L0 原始事件与 L1 原子记忆检索。"""
+
 from fastapi import APIRouter, Depends
 
 from oom.app.dependencies import get_memory_core

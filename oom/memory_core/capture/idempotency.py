@@ -1,3 +1,5 @@
+"""采集请求幂等缓存，避免重复 turn 产生重复 L0 事件。"""
+
 from __future__ import annotations
 
 import hashlib

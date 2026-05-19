@@ -1,3 +1,5 @@
+"""LLM JSON 解析工具，容忍模型返回 markdown fence 或前后缀文本。"""
+
 from __future__ import annotations
 
 import json
@@ -26,10 +28,12 @@ def parse_json_array(raw: str) -> list[Any]:
 
 
 def _clean_control_chars(value: str) -> str:
+    """移除 JSON 不允许的控制字符，保留常见空白。"""
     return "".join(char for char in value if char in "\r\n\t" or ord(char) >= 32)
 
 
 def _find_array_end(value: str, start: int) -> int:
+    """按括号深度定位数组结束位置，避免被字符串里的 ] 干扰。"""
     depth = 0
     in_string = False
     escaped = False

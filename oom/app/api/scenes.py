@@ -1,3 +1,5 @@
+"""场景 API，管理 L2 scene Markdown 块。"""
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from oom.app.dependencies import get_memory_core

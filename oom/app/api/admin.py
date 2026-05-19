@@ -1,3 +1,5 @@
+"""管理面 API：状态、重建索引、租户导入导出与用户删除。"""
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from oom.app.dependencies import get_memory_core

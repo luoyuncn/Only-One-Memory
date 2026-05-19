@@ -1,3 +1,5 @@
+"""场景索引构建器，把 SceneBlock 转为可浏览条目。"""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -32,4 +34,3 @@ def _build_item(filename: str, markdown: str) -> SceneIndexItem:
         summary=parsed.meta.summary,
         heat=parsed.meta.heat,
     )
-

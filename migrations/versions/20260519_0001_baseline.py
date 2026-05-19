@@ -1,3 +1,5 @@
+"""Only-One-Memory 初始数据库结构迁移。"""
+
 from __future__ import annotations
 
 from alembic import op

@@ -1,1 +1,1 @@
-"""Recall ranking helpers."""
+"""召回排序辅助模块。"""

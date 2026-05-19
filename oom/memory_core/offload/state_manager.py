@@ -1,3 +1,5 @@
+"""短期上下文状态管理，维护 offload entry 与 Mermaid 导航。"""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

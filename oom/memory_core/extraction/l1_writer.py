@@ -1,3 +1,5 @@
+"""L1 写入服务，负责把抽取结果落到 Store 并携带向量。"""
+
 from __future__ import annotations
 
 from oom.memory_core.embeddings.base import EmbeddingService

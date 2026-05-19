@@ -1,3 +1,5 @@
+"""后台 worker 入口，从 Postgres pipeline_jobs 中领取并执行任务。"""
+
 from __future__ import annotations
 
 import asyncio

@@ -1,3 +1,5 @@
+"""工具调用结果压缩器，把冗长结果折叠为可索引的 offload entry。"""
+
 from __future__ import annotations
 
 from copy import deepcopy

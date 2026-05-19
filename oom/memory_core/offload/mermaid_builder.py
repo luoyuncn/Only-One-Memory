@@ -1,3 +1,5 @@
+"""根据 offload entries 生成 Mermaid 任务图。"""
+
 from __future__ import annotations
 
 import re

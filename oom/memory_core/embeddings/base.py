@@ -1,3 +1,5 @@
+"""Embedding Runner 协议，隔离具体向量供应商。"""
+
 from __future__ import annotations
 
 from typing import Protocol

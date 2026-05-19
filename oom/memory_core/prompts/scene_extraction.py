@@ -1,3 +1,5 @@
+"""L2 场景抽取 prompt。"""
+
 from __future__ import annotations
 
 from oom.memory_core.prompts.attribution import PROMPT_LICENSE, TENCENTDB_AGENT_MEMORY_REPO

@@ -1,3 +1,5 @@
+"""SQLite/sqlite-vec Store Adapter，实现本地开发与单机持久化。"""
+
 from __future__ import annotations
 
 import json
@@ -21,12 +23,19 @@ from oom.memory_core.types import (
 
 
 class SqliteMemoryStore:
+    """本地优先的 store 实现。
+
+    SQLite 负责结构化数据和 FTS5；向量目前以 JSON 存储后在 Python 内计算余弦相似度，
+    这样没有 sqlite-vec 时也能维持测试和本地开发闭环。
+    """
+
     def __init__(self, config: SqliteConfig) -> None:
         self.config = config
         self.vector_backend = config.vector_backend
         self._db: aiosqlite.Connection | None = None
 
     async def init(self) -> None:
+        """创建表、FTS 虚拟表和兼容旧库的补列。"""
         self._db = await aiosqlite.connect(self.config.path)
         self._db.row_factory = aiosqlite.Row
         await self._db.execute("PRAGMA journal_mode=WAL")
@@ -154,6 +163,7 @@ class SqliteMemoryStore:
             ON audit_logs(created_at);
             """
         )
+        # 兼容早期 schema：旧数据库没有 user_id/agent_id，需要在线补列。
         await self._ensure_column("offload_entries", "user_id", "TEXT NOT NULL DEFAULT ''")
         await self._ensure_column("offload_entries", "agent_id", "TEXT NOT NULL DEFAULT ''")
         await self._db.commit()
@@ -172,6 +182,7 @@ class SqliteMemoryStore:
         )
 
     async def upsert_l0(self, event: L0Event, embedding: list[float] | None = None) -> bool:
+        """写入 L0 事件，并同步维护 FTS 和 embedding 辅表。"""
         db = self._require_db()
         await db.execute(
             """
@@ -222,6 +233,7 @@ class SqliteMemoryStore:
     async def search_l0_fts(
         self, query: str, limit: int, filters: dict[str, Any] | None = None
     ) -> list[ConversationSearchHit]:
+        """优先使用 FTS5；query 语法不被 FTS 接受时降级 LIKE 搜索。"""
         db = self._require_db()
         where_sql, params = self._filters_sql(filters)
         try:
@@ -249,6 +261,7 @@ class SqliteMemoryStore:
     async def search_l0_vector(
         self, embedding: list[float], limit: int, filters: dict[str, Any] | None = None
     ) -> list[ConversationSearchHit]:
+        """从 JSON embedding 中取出向量，在进程内做余弦排序。"""
         db = self._require_db()
         where_sql, params = self._filters_sql(filters)
         cursor = await db.execute(
@@ -272,6 +285,7 @@ class SqliteMemoryStore:
         ]
 
     async def query_l0_for_l1(self, filters: dict[str, Any] | None = None, limit: int = 100) -> list[L0Event]:
+        """按范围取出待抽取的 L0 事件，供 L1 pipeline 消费。"""
         db = self._require_db()
         where_sql, params = self._filters_sql(filters)
         cursor = await db.execute(
@@ -288,6 +302,7 @@ class SqliteMemoryStore:
         return [self._event_from_row(row) for row in rows]
 
     async def upsert_l1(self, memory: MemoryAtom, embedding: list[float] | None = None) -> bool:
+        """写入 L1 记忆，并同步 FTS、embedding 与 evidence source 关系。"""
         db = self._require_db()
         await db.execute(
             """
@@ -353,6 +368,7 @@ class SqliteMemoryStore:
     async def search_l1_fts(
         self, query: str, limit: int, filters: dict[str, Any] | None = None
     ) -> list[MemorySearchHit]:
+        """搜索 L1 FTS，失败或无命中时降级 LIKE。"""
         db = self._require_db()
         where_sql, params = self._filters_sql(filters, alias="m")
         try:
@@ -380,6 +396,7 @@ class SqliteMemoryStore:
     async def search_l1_vector(
         self, embedding: list[float], limit: int, filters: dict[str, Any] | None = None
     ) -> list[MemorySearchHit]:
+        """按 L1 embedding 做语义召回。"""
         db = self._require_db()
         where_sql, params = self._filters_sql(filters, alias="m")
         cursor = await db.execute(
@@ -588,6 +605,7 @@ class SqliteMemoryStore:
         return [self._audit_event_from_row(row) for row in await cursor.fetchall()]
 
     async def export_tenant_records(self, tenant_id: str) -> dict[str, Any]:
+        """导出租户内所有数据库记录，文件型 offload refs 由上层单独处理。"""
         db = self._require_db()
         l0 = await db.execute("SELECT * FROM conversation_events WHERE tenant_id = ? ORDER BY event_ts ASC", (tenant_id,))
         l1 = await db.execute("SELECT * FROM memories WHERE tenant_id = ? ORDER BY updated_at ASC", (tenant_id,))
@@ -609,6 +627,7 @@ class SqliteMemoryStore:
         }
 
     async def import_tenant_records(self, tenant_id: str, records: dict[str, Any]) -> dict[str, int]:
+        """导入租户数据，并把 payload 中的 tenant_id 统一收敛到目标租户。"""
         counts = {"l0": 0, "l1": 0, "l2": 0, "l3": 0, "offload_entries": 0, "audit": 0}
         for item in records.get("l0", []):
             event = L0Event.model_validate(item).model_copy(update={"tenant_id": tenant_id})
@@ -636,6 +655,7 @@ class SqliteMemoryStore:
         return counts
 
     async def delete_user_records(self, tenant_id: str, user_id: str) -> dict[str, int]:
+        """删除用户在该租户下的 L0/L1/L2/L3/offload/audit 数据。"""
         db = self._require_db()
         event_ids = await self._select_ids(
             "SELECT id FROM conversation_events WHERE tenant_id = ? AND user_id = ?", (tenant_id, user_id)
@@ -745,6 +765,7 @@ class SqliteMemoryStore:
 
     @staticmethod
     def _filters_sql(filters: dict[str, Any] | None, alias: str = "e") -> tuple[str, list[Any]]:
+        """把通用 scope filters 编译成 SQLite WHERE 片段。"""
         if not filters:
             return "", []
         allowed = {"tenant_id", "user_id", "agent_id", "session_id", "session_key", "role"}
@@ -901,6 +922,7 @@ class SqliteMemoryStore:
 
     @staticmethod
     def _cosine_similarity(left: list[float], right: list[float]) -> float:
+        """进程内余弦相似度，用于本地 fallback vector search。"""
         numerator = sum(a * b for a, b in zip(left, right))
         left_norm = math.sqrt(sum(a * a for a in left))
         right_norm = math.sqrt(sum(b * b for b in right))

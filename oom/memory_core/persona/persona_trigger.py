@@ -1,3 +1,5 @@
+"""Persona 生成触发策略。"""
+
 from __future__ import annotations
 
 

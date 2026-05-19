@@ -1,3 +1,5 @@
+"""场景导航 Markdown 生成器。"""
+
 from __future__ import annotations
 
 from typing import Any

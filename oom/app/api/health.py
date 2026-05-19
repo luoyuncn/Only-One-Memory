@@ -1,3 +1,5 @@
+"""健康检查 API，用于容器和集成测试确认服务存活。"""
+
 from fastapi import APIRouter
 
 router = APIRouter()

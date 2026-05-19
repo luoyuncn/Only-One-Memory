@@ -1,3 +1,5 @@
+"""OpenAI-compatible chat completions 调用器。"""
+
 from __future__ import annotations
 
 import asyncio

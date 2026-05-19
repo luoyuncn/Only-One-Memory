@@ -1,3 +1,5 @@
+"""本地开发用的确定性 embedding，实现无需外部服务的可测试向量。"""
+
 from __future__ import annotations
 
 import hashlib

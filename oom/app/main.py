@@ -1,3 +1,5 @@
+"""FastAPI 应用工厂，负责装配所有 HTTP 路由和指标端点。"""
+
 from weakref import WeakSet
 
 from fastapi import FastAPI, Response

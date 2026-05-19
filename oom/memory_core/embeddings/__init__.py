@@ -1,1 +1,1 @@
-"""Embedding service implementations."""
+"""Embedding 服务实现。"""

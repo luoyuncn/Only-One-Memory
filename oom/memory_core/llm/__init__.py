@@ -1,1 +1,1 @@
-"""LLM integration helpers."""
+"""LLM 集成辅助模块。"""

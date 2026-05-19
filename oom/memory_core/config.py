@@ -1,3 +1,5 @@
+"""应用配置模型，从环境变量收敛存储、Pipeline、鉴权和 Offload 设置。"""
+
 from __future__ import annotations
 
 import os
@@ -7,6 +9,7 @@ from pydantic import BaseModel, Field
 
 
 def _env(name: str, legacy_name: str, default: str) -> str:
+    """读取新旧环境变量名，兼容早期 ONLY_ONE_MEMORY_* 配置。"""
     return os.getenv(name) or os.getenv(legacy_name) or default
 
 
@@ -41,6 +44,8 @@ class PostgresConfig(BaseModel):
 
 
 class StoreConfig(BaseModel):
+    """Store 选择与各后端配置。"""
+
     backend: Literal["sqlite", "postgres"] = Field(default_factory=_store_backend)
     sqlite: SqliteConfig = Field(default_factory=SqliteConfig)
     postgres: PostgresConfig = Field(default_factory=PostgresConfig)
@@ -57,6 +62,8 @@ class RecallConfig(BaseModel):
 
 
 class PipelineConfig(BaseModel):
+    """记忆管线配置，尽量用少量开关控制 L1/L2/L3 生命周期。"""
+
     enable_l1: bool = False
     enable_l2: bool = False
     enable_l3: bool = False
@@ -81,6 +88,8 @@ class SecurityConfig(BaseModel):
 
 
 class AppConfig(BaseModel):
+    """应用总配置，FastAPI 和 worker 都从这里读取同一套运行参数。"""
+
     server: ServerConfig = Field(default_factory=ServerConfig)
     store: StoreConfig = Field(default_factory=StoreConfig)
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)

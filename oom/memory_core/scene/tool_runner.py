@@ -1,3 +1,5 @@
+"""场景工具沙箱，限制 LLM 只能通过明确工具写入场景。"""
+
 from __future__ import annotations
 
 from pathlib import Path

@@ -1,3 +1,5 @@
+"""Pipeline runner 调度辅助函数。"""
+
 from __future__ import annotations
 
 import asyncio

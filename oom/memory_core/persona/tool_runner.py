@@ -1,3 +1,5 @@
+"""Persona 相关工具沙箱，限制可访问的 profile 操作。"""
+
 from __future__ import annotations
 
 from pathlib import Path

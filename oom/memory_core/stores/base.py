@@ -1,3 +1,5 @@
+"""Store Adapter 协议，定义 MemoryCore 与具体数据库之间的契约。"""
+
 from __future__ import annotations
 
 from typing import Any, Protocol
@@ -16,6 +18,11 @@ from oom.memory_core.offload.types import OffloadEntry
 
 
 class MemoryStore(Protocol):
+    """所有存储后端必须实现的最小契约。
+
+    MemoryCore 只依赖这个协议，因此 SQLite、Postgres 或未来向量库都能替换实现。
+    """
+
     async def init(self) -> None: ...
 
     async def close(self) -> None: ...

@@ -1,3 +1,5 @@
+"""画像 API，读写 L3 persona/profile 文档。"""
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from oom.app.dependencies import get_memory_core

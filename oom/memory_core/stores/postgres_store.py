@@ -1,3 +1,5 @@
+"""Postgres/pgvector Store Adapter，实现生产型持久化与混合检索。"""
+
 from __future__ import annotations
 
 import json
@@ -20,6 +22,7 @@ from oom.memory_core.types import (
 
 
 def postgres_schema_comment_statements() -> tuple[str, ...]:
+    """Postgres 表/字段注释，便于 DBA 或 schema 工具直接理解记忆分层。"""
     return (
         "COMMENT ON TABLE conversation_events IS 'L0 原始对话事件表，保存 user/assistant/tool/system 的原文事件'",
         "COMMENT ON COLUMN conversation_events.id IS '事件唯一 ID'",
@@ -39,11 +42,17 @@ def postgres_schema_comment_statements() -> tuple[str, ...]:
 
 
 class PostgresMemoryStore:
+    """生产型 store 实现。
+
+    Postgres 承担事务、JSONB、全文检索和 pgvector，相比 SQLite 更适合多租户服务化部署。
+    """
+
     def __init__(self, config: PostgresConfig) -> None:
         self.config = config
         self._pool: asyncpg.Pool | None = None
 
     async def init(self) -> None:
+        """初始化连接池、pgvector 扩展、表结构与索引。"""
         if not self.config.dsn:
             raise ValueError("Postgres DSN is required")
         self._pool = await asyncpg.create_pool(dsn=self._normalize_dsn(self.config.dsn), min_size=1, max_size=5)
@@ -216,6 +225,7 @@ class PostgresMemoryStore:
         )
 
     async def upsert_l0(self, event: L0Event, embedding: list[float] | None = None) -> bool:
+        """写入 L0 事件；Postgres 直接把向量存入 pgvector 字段。"""
         pool = self._require_pool()
         embedding_literal = self._vector_literal(embedding) if embedding is not None else None
         async with pool.acquire() as conn:
@@ -256,6 +266,7 @@ class PostgresMemoryStore:
     async def search_l0_fts(
         self, query: str, limit: int, filters: dict[str, Any] | None = None
     ) -> list[ConversationSearchHit]:
+        """使用 plainto_tsquery 做 L0 全文检索，并叠加 scope filters。"""
         pool = self._require_pool()
         where_sql, params = self._filters_sql(filters, start_index=3)
         async with pool.acquire() as conn:
@@ -276,6 +287,7 @@ class PostgresMemoryStore:
     async def search_l0_vector(
         self, embedding: list[float], limit: int, filters: dict[str, Any] | None = None
     ) -> list[ConversationSearchHit]:
+        """使用 pgvector 距离运算做 L0 语义检索。"""
         pool = self._require_pool()
         where_sql, params = self._filters_sql(filters, start_index=3)
         async with pool.acquire() as conn:
@@ -294,6 +306,7 @@ class PostgresMemoryStore:
         return [ConversationSearchHit(event=self._event_from_record(row), score=float(row["score"])) for row in rows]
 
     async def query_l0_for_l1(self, filters: dict[str, Any] | None = None, limit: int = 100) -> list[L0Event]:
+        """按范围取出待抽取的 L0 事件，供 L1 pipeline 消费。"""
         pool = self._require_pool()
         where_sql, params = self._filters_sql(filters, start_index=2)
         async with pool.acquire() as conn:
@@ -311,6 +324,7 @@ class PostgresMemoryStore:
         return [self._event_from_record(row) for row in rows]
 
     async def upsert_l1(self, memory: MemoryAtom, embedding: list[float] | None = None) -> bool:
+        """写入 L1 记忆，并维护 memory_sources 证据关系。"""
         pool = self._require_pool()
         embedding_literal = self._vector_literal(embedding) if embedding is not None else None
         async with pool.acquire() as conn:
@@ -370,6 +384,7 @@ class PostgresMemoryStore:
     async def search_l1_fts(
         self, query: str, limit: int, filters: dict[str, Any] | None = None
     ) -> list[MemorySearchHit]:
+        """使用 Postgres FTS 搜索 L1 原子记忆。"""
         pool = self._require_pool()
         where_sql, params = self._filters_sql(filters, start_index=3, alias="m")
         async with pool.acquire() as conn:
@@ -390,6 +405,7 @@ class PostgresMemoryStore:
     async def search_l1_vector(
         self, embedding: list[float], limit: int, filters: dict[str, Any] | None = None
     ) -> list[MemorySearchHit]:
+        """使用 pgvector 搜索 L1 原子记忆。"""
         pool = self._require_pool()
         where_sql, params = self._filters_sql(filters, start_index=3, alias="m")
         async with pool.acquire() as conn:
@@ -583,6 +599,7 @@ class PostgresMemoryStore:
         return [self._audit_event_from_record(row) for row in rows]
 
     async def export_tenant_records(self, tenant_id: str) -> dict[str, Any]:
+        """导出租户内数据库记录，文件型 offload refs 由 API 层合并。"""
         pool = self._require_pool()
         async with pool.acquire() as conn:
             l0 = await conn.fetch(
@@ -605,6 +622,7 @@ class PostgresMemoryStore:
         }
 
     async def import_tenant_records(self, tenant_id: str, records: dict[str, Any]) -> dict[str, int]:
+        """导入租户数据，并把记录统一改写到目标 tenant_id。"""
         counts = {"l0": 0, "l1": 0, "l2": 0, "l3": 0, "offload_entries": 0, "audit": 0}
         for item in records.get("l0", []):
             event = L0Event.model_validate(item).model_copy(update={"tenant_id": tenant_id})
@@ -632,6 +650,7 @@ class PostgresMemoryStore:
         return counts
 
     async def delete_user_records(self, tenant_id: str, user_id: str) -> dict[str, int]:
+        """事务性删除用户在该租户下的所有数据库侧记忆数据。"""
         pool = self._require_pool()
         async with pool.acquire() as conn:
             async with conn.transaction():
@@ -735,6 +754,7 @@ class PostgresMemoryStore:
 
     @staticmethod
     def _filters_sql(filters: dict[str, Any] | None, start_index: int, alias: str = "e") -> tuple[str, list[Any]]:
+        """把通用 scope filters 编译成带 $n 占位符的 Postgres WHERE 片段。"""
         if not filters:
             return "", []
         allowed = {"tenant_id", "user_id", "agent_id", "session_id", "session_key", "role"}

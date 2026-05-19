@@ -1,3 +1,5 @@
+"""审计日志模型与写入服务，记录管理侧高风险操作。"""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

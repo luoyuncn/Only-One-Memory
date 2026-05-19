@@ -1,3 +1,5 @@
+"""Reciprocal Rank Fusion 排序融合实现。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

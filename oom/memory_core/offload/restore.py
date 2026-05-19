@@ -1,3 +1,5 @@
+"""按 node_id 或 result_ref 从 offload 数据中恢复原文。"""
+
 from __future__ import annotations
 
 from oom.memory_core.offload.ref_store import OffloadRefStore
