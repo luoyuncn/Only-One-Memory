@@ -689,6 +689,8 @@ class SqliteMemoryStore:
         db = self._require_db()
         cursor = await db.execute(f"SELECT count(*) AS count FROM {table_name}")
         row = await cursor.fetchone()
+        if row is None:
+            return 0
         return int(row["count"])
 
     async def _select_ids(self, sql: str, params: tuple[Any, ...]) -> list[str]:

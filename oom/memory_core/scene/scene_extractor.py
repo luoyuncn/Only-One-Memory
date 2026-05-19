@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 from uuid import uuid5, NAMESPACE_URL
@@ -87,6 +88,7 @@ class SceneExtractor:
             content = (self.data_dir / filename).read_text(encoding="utf-8")
             parsed = parse_scene_block(content, filename=filename)
             scene_id = str(uuid5(NAMESPACE_URL, f"{tenant_id}:{user_id}:{filename}"))
+            updated_at = datetime.fromisoformat(parsed.meta.updated.replace("Z", "+00:00"))
             await self.store.upsert_scene(
                 SceneBlock(
                     id=scene_id,
@@ -97,6 +99,6 @@ class SceneExtractor:
                     summary=parsed.meta.summary,
                     heat=parsed.meta.heat,
                     metadata={"source": "scene_extractor"},
-                    updated_at=parsed.meta.updated,
+                    updated_at=updated_at,
                 )
             )

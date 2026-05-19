@@ -1,4 +1,6 @@
-from oom.memory_core.pipeline.jobs import PipelineJob
+from typing import cast
+
+from oom.memory_core.pipeline.jobs import PipelineJob, PipelineJobStore
 from oom.memory_core.pipeline.scheduler import PipelineScheduler
 
 
@@ -27,7 +29,7 @@ async def test_scheduler_completes_successful_job():
     async def handler(session_key: str, payload: dict):
         calls.append(session_key)
 
-    scheduler = PipelineScheduler(store, worker_id="w1", handlers={"l1": handler})
+    scheduler = PipelineScheduler(cast(PipelineJobStore, store), worker_id="w1", handlers={"l1": handler})
 
     assert await scheduler.run_once() is True
     assert calls == ["s1"]

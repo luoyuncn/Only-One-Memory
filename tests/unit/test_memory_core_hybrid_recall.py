@@ -2,6 +2,9 @@ from datetime import datetime, timezone
 
 from oom.memory_core.config import AppConfig
 from oom.memory_core.core import MemoryCore
+from typing import cast
+
+from oom.memory_core.stores.base import MemoryStore
 from oom.memory_core.types import MemoryAtom, MemorySearchRequest, MemorySearchHit, StoreCapabilities
 
 
@@ -48,7 +51,7 @@ class HybridStore:
 
 
 async def test_search_memories_uses_rrf_to_boost_overlapping_hits():
-    core = MemoryCore(AppConfig(), store=HybridStore())
+    core = MemoryCore(AppConfig(), store=cast(MemoryStore, HybridStore()))
 
     result = await core.search_memories(
         MemorySearchRequest(
