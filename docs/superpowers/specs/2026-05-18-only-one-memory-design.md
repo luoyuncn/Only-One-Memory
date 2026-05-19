@@ -1,72 +1,72 @@
-# Only-One-Memory Design
+# Only-One-Memory 设计
 
-Date: 2026-05-18
+日期：2026-05-18
 
-## 1. Goal
+## 1. 目标
 
-Only-One-Memory is a Python-native Agent Memory Runtime. It should reproduce the core architecture and behavior of TencentDB-Agent-Memory as closely as practical, while exposing a REST-first interface suitable for Python agents, Feishu bots, MCP agents, LangGraph, CrewAI, and custom runtimes.
+Only-One-Memory 是一个 Python 原生的 Agent Memory Runtime。它应该尽可能还原 TencentDB-Agent-Memory 的核心架构和运行行为，同时提供 REST-first 接口，方便 Python Agent、飞书机器人、MCP Agent、LangGraph、CrewAI 和自研运行时接入。
 
-The project is not a direct Node sidecar wrapper. It is a high-fidelity Python reimplementation of the memory runtime:
+本项目不是直接包装一个 Node sidecar，而是对记忆运行时进行高保真的 Python 复刻：
 
-- `TdaiCore` becomes `MemoryCore`.
-- OpenClaw hooks become FastAPI endpoints and a Python SDK.
-- `IMemoryStore` becomes a Python `MemoryStore` protocol with runtime capabilities.
-- TencentDB-Agent-Memory prompts are translated or reused as directly as possible under the MIT license, with attribution.
-- Implementation is staged, but the code design covers the full system.
+- `TdaiCore` 对应为 `MemoryCore`。
+- OpenClaw hooks 对应为 FastAPI 端点和 Python SDK。
+- `IMemoryStore` 对应为具备运行时能力声明的 Python `MemoryStore` protocol。
+- TencentDB-Agent-Memory 的提示词在 MIT 许可下尽可能直接翻译或复用，并保留 attribution。
+- 实现分阶段推进，但代码设计覆盖完整系统。
 
-Core principles:
+核心原则：
 
-- L0 preserves raw evidence.
-- L1 stores atomic, searchable memories.
-- L2 consolidates memories into scene blocks.
-- L3 maintains stable persona/profile context.
-- Recall injects low-latency stable and dynamic context.
-- Pipeline work evolves memory asynchronously.
-- Store adapters keep SQLite and Postgres interchangeable.
-- Context offload compresses long-running tool logs without losing traceability.
+- L0 保存原始证据。
+- L1 保存原子化、可检索的记忆。
+- L2 将记忆整合为场景块。
+- L3 维护稳定的 persona/profile 上下文。
+- Recall 负责低延迟注入 stable 和 dynamic context。
+- Pipeline 异步演化记忆。
+- Store adapters 保持 SQLite 和 Postgres 可切换。
+- Context offload 压缩长任务工具日志，同时不丢失可追溯性。
 
-## 2. Reference System
+## 2. 参照系统
 
-The design is based on the local reference repository:
+本设计基于本地参照仓库：
 
 `D:\dev\agent\TencentDB-Agent-Memory`
 
-Important source files:
+重要源码文件：
 
-- `src/core/tdai-core.ts`: host-neutral facade for recall, capture, search, and pipeline management.
-- `src/core/store/types.ts`: backend-agnostic store interface and capability flags.
-- `src/core/hooks/auto-capture.ts`: L0 capture and deferred embedding behavior.
-- `src/core/hooks/auto-recall.ts`: hybrid recall, stable/dynamic context split, timeout behavior.
-- `src/utils/pipeline-manager.ts`: L0 -> L1 -> L2 -> L3 pipeline scheduling.
-- `src/core/prompts/l1-extraction.ts`: L1 scene segmentation and memory extraction prompt.
-- `src/core/prompts/l1-dedup.ts`: L1 conflict detection and merge prompt.
-- `src/core/prompts/scene-extraction.ts`: L2 scene block prompt and file operation rules.
-- `src/core/prompts/persona-generation.ts`: L3 persona prompt and persona file constraints.
-- `src/offload/*`: context offload, refs, Mermaid, and compression behavior.
+- `src/core/tdai-core.ts`：负责 recall、capture、search 和 pipeline 管理的 host-neutral facade。
+- `src/core/store/types.ts`：与后端无关的 store 接口和 capability flags。
+- `src/core/hooks/auto-capture.ts`：L0 capture 和 deferred embedding 行为。
+- `src/core/hooks/auto-recall.ts`：hybrid recall、stable/dynamic context 拆分和 timeout 行为。
+- `src/utils/pipeline-manager.ts`：L0 -> L1 -> L2 -> L3 pipeline 调度。
+- `src/core/prompts/l1-extraction.ts`：L1 情境切分和记忆抽取提示词。
+- `src/core/prompts/l1-dedup.ts`：L1 冲突检测和合并提示词。
+- `src/core/prompts/scene-extraction.ts`：L2 场景块提示词和文件操作规则。
+- `src/core/prompts/persona-generation.ts`：L3 persona 提示词和 persona 文件约束。
+- `src/offload/*`：context offload、refs、Mermaid 和压缩行为。
 
-## 3. Licensing And Prompt Reuse
+## 3. 许可与提示词复用
 
-TencentDB-Agent-Memory is MIT licensed. This project may translate and reuse prompt content and design structure, provided attribution and license notices are retained.
+TencentDB-Agent-Memory 使用 MIT License。本项目可以翻译和复用其提示词内容与设计结构，前提是保留 attribution 和 license notices。
 
-Required files:
+必需文件：
 
 - `docs/attribution/tencentdb-agent-memory.md`
-- `NOTICE` or a README attribution section
+- `NOTICE` 或 README attribution section
 - `memory_core/prompts/attribution.py`
 
-Attribution text should state that portions of the prompt design and memory architecture are adapted from TencentDB-Agent-Memory under the MIT license.
+Attribution 文本应说明：部分提示词设计和记忆架构改编自 TencentDB-Agent-Memory，并遵循 MIT License。
 
-Prompt modules should keep source mapping comments, for example:
+Prompt 模块应保留来源映射注释，例如：
 
 ```python
-# Adapted from TencentDB-Agent-Memory:
+# 改编自 TencentDB-Agent-Memory:
 # src/core/prompts/l1-extraction.ts
 # License: MIT
 ```
 
-## 4. Architecture
+## 4. 架构
 
-Runtime shape:
+运行时形态：
 
 ```text
 Agent Runtime / Bot / SDK / MCP / LangGraph
@@ -82,11 +82,11 @@ FastAPI Adapter
         -> Storage + Index
 ```
 
-`MemoryCore` is the stable business entry point. API routes, SDKs, CLIs, workers, and future MCP adapters should call `MemoryCore` instead of directly using stores or services.
+`MemoryCore` 是稳定的业务入口。API routes、SDK、CLI、workers 和未来的 MCP adapters 都应该调用 `MemoryCore`，而不是直接使用 store 或 service。
 
-FastAPI is an adapter only. It validates HTTP payloads, resolves dependencies, and maps HTTP errors, but it does not own memory behavior.
+FastAPI 只作为 adapter。它负责校验 HTTP payload、解析依赖、映射 HTTP 错误，但不拥有记忆业务逻辑。
 
-## 5. Proposed Directory Structure
+## 5. 建议目录结构
 
 ```text
 only_one_memory/
@@ -193,9 +193,9 @@ only_one_memory/
 
 ## 6. MemoryCore
 
-`MemoryCore` mirrors TencentDB-Agent-Memory's `TdaiCore`.
+`MemoryCore` 对齐 TencentDB-Agent-Memory 的 `TdaiCore`。
 
-Public methods:
+公开方法：
 
 ```python
 class MemoryCore:
@@ -212,7 +212,7 @@ class MemoryCore:
     async def get_pipeline_status(self) -> PipelineStatus: ...
 ```
 
-Internal state:
+内部状态：
 
 - config
 - logger
@@ -224,7 +224,7 @@ Internal state:
 - scheduler start gate
 - background task registry
 
-Execution chain:
+执行链路：
 
 ```text
 POST /v1/recall/before
@@ -234,7 +234,7 @@ POST /v1/recall/before
   -> L3 persona + L2 scene navigation + L1 hybrid search
   -> stable_context + dynamic_context
 
-Agent calls the LLM
+Agent 调用 LLM
 
 POST /v1/capture/turn
   -> CompletedTurn
@@ -244,22 +244,22 @@ POST /v1/capture/turn
   -> pipeline.notify_conversation
   -> quick response
 
-Background pipeline:
+后台 pipeline:
   L1 extract/dedup/write
   -> L2 scene update
   -> L3 persona update
 ```
 
-Important semantics:
+重要语义：
 
-- `before_recall()` is user-facing and must have a timeout.
-- `commit_turn()` records L0 and notifies the pipeline; it does not synchronously run L1/L2/L3.
-- `end_session()` flushes only the named session. It must not destroy global scheduler state.
-- `shutdown()` drains background tasks, flushes pending work within a bounded timeout, and closes stores.
+- `before_recall()` 位于用户等待路径上，必须有 timeout。
+- `commit_turn()` 只记录 L0 并通知 pipeline；它不会同步运行 L1/L2/L3。
+- `end_session()` 只 flush 指定 session，不能销毁全局 scheduler 状态。
+- `shutdown()` 会 drain 后台任务，在有界 timeout 内 flush pending work，并关闭 stores。
 
-## 7. Domain Models
+## 7. 领域模型
 
-Common identity fields should be present in request models and persisted records:
+请求模型和持久化记录中应包含通用身份字段：
 
 - `tenant_id`
 - `user_id`
@@ -291,7 +291,7 @@ class L0Event(BaseModel):
 
 ### MemoryAtom
 
-For high fidelity with Tencent prompts, the initial L1 types are:
+为了与 Tencent prompt 保持高保真，初始 L1 类型为：
 
 - `persona`
 - `episodic`
@@ -351,9 +351,9 @@ class PersonaProfile(BaseModel):
     updated_at: datetime
 ```
 
-## 8. Database Schema
+## 8. 数据库 Schema
 
-Logical tables:
+逻辑表：
 
 ```text
 tenants
@@ -376,14 +376,14 @@ idempotency_records
 audit_logs
 ```
 
-Required traceability:
+必需的可追溯关系：
 
-- `memory_sources`: L1 -> L0 evidence
-- `scene_sources`: L2 -> L1 evidence
-- `persona_sources`: L3 -> L2 evidence
-- offload refs can be referenced by L0 tool events and offload graph nodes
+- `memory_sources`：L1 -> L0 evidence
+- `scene_sources`：L2 -> L1 evidence
+- `persona_sources`：L3 -> L2 evidence
+- offload refs 可被 L0 tool events 和 offload graph nodes 引用
 
-Indexes:
+索引：
 
 ```text
 L0:
@@ -408,26 +408,26 @@ Pipeline:
   job status + run_after
 ```
 
-SQLite:
+SQLite：
 
-- FTS5 for keyword search.
-- Embedding stored as BLOB or JSON initially.
-- Python brute-force cosine as the default vector fallback.
-- Optional sqlite-vec later.
-- WAL mode.
-- In-process worker first.
+- FTS5 用于关键词检索。
+- 初期 embedding 存为 BLOB 或 JSON。
+- 默认使用 Python brute-force cosine 作为向量检索兜底。
+- 后续可选 sqlite-vec。
+- 使用 WAL mode。
+- 优先使用 in-process worker。
 
-Postgres:
+Postgres：
 
-- JSONB metadata.
-- tsvector + GIN.
-- pgvector.
-- `SELECT ... FOR UPDATE SKIP LOCKED` for DB-backed workers.
-- advisory locks or job-table locks for distributed safety.
+- JSONB metadata。
+- tsvector + GIN。
+- pgvector。
+- DB-backed workers 使用 `SELECT ... FOR UPDATE SKIP LOCKED`。
+- 使用 advisory locks 或 job-table locks 保证分布式安全。
 
-## 9. REST API And SDK
+## 9. REST API 与 SDK
 
-Main flow:
+主流程：
 
 ```text
 POST /v1/recall/before
@@ -435,7 +435,7 @@ POST /v1/capture/turn
 POST /v1/sessions/{session_key}/end
 ```
 
-Search and tool flow:
+搜索和工具流程：
 
 ```text
 POST /v1/memories/search
@@ -443,7 +443,7 @@ POST /v1/conversations/search
 POST /v1/offload/restore
 ```
 
-Management flow:
+管理流程：
 
 ```text
 GET    /v1/scenes
@@ -464,7 +464,7 @@ GET    /v1/health
 GET    /v1/metrics
 ```
 
-Python SDK shape:
+Python SDK 形态：
 
 ```python
 client = MemoryClient(base_url="http://localhost:8710", api_key="...")
@@ -496,18 +496,18 @@ await client.commit_turn(
 )
 ```
 
-Security:
+安全：
 
-- V0 uses API key auth.
-- V1 adds tenant-scoped API keys.
-- V2 may add JWT/OIDC.
-- `trace_id` is propagated.
-- `/v1/capture/turn` requires an `idempotency_key`.
-- Recall/search failures degrade to empty results; capture persistence failures return errors.
+- V0 使用 API key auth。
+- V1 增加 tenant-scoped API keys。
+- V2 可增加 JWT/OIDC。
+- `trace_id` 全链路透传。
+- `/v1/capture/turn` 必须提供 `idempotency_key`。
+- Recall/search 失败时降级为空结果；capture 持久化失败时返回错误。
 
 ## 10. Store Adapter
 
-`MemoryStore` mirrors Tencent's `IMemoryStore`.
+`MemoryStore` 对齐 Tencent 的 `IMemoryStore`。
 
 ```python
 @dataclass(frozen=True)
@@ -550,16 +550,16 @@ class MemoryStore(Protocol):
     async def reindex_all(self, embed_fn: Callable[[str], Awaitable[list[float]]]) -> ReindexResult: ...
 ```
 
-Rules:
+规则：
 
-- Store methods used by recall should fail closed with empty results or `False` plus logs.
-- Admin and migration methods may raise explicit errors.
-- Capabilities represent runtime reality, not configuration intent.
-- Embedding provider/model/dimension changes should produce `needs_reindex=True`.
+- Recall 使用的 store 方法应 fail closed：返回空结果或 `False`，并记录日志。
+- Admin 和 migration 方法可以抛出显式错误。
+- Capabilities 表示运行时真实能力，而不是配置意图。
+- Embedding provider/model/dimension 变化时应产生 `needs_reindex=True`。
 
-## 11. Recall And Search
+## 11. Recall 与 Search
 
-Recall mirrors Tencent's auto-recall:
+Recall 对齐 Tencent 的 auto-recall：
 
 ```text
 1. Clean user_text.
@@ -571,7 +571,7 @@ Recall mirrors Tencent's auto-recall:
 7. Return stable_context and dynamic_context.
 ```
 
-Context split:
+Context 拆分：
 
 ```text
 stable_context:
@@ -586,7 +586,7 @@ dynamic_context:
   </recalled-memories>
 ```
 
-RRF:
+RRF：
 
 ```python
 def rrf_merge(lists: list[list[SearchHit]], k: int = 60) -> list[SearchHit]:
@@ -603,7 +603,7 @@ def rrf_merge(lists: list[list[SearchHit]], k: int = 60) -> list[SearchHit]:
     )
 ```
 
-Boosts:
+加权项：
 
 ```text
 final_score =
@@ -614,7 +614,7 @@ final_score =
   + type_boost
 ```
 
-Default config:
+默认配置：
 
 ```yaml
 recall:
@@ -629,16 +629,16 @@ embedding:
   recall_timeout_ms: 1000
 ```
 
-Search tools:
+搜索工具：
 
-- `/v1/memories/search` searches L1 structured memories.
-- `/v1/conversations/search` searches L0 raw evidence.
+- `/v1/memories/search` 搜索 L1 结构化记忆。
+- `/v1/conversations/search` 搜索 L0 原始证据。
 
-Both should return Agent-readable text and structured JSON fields.
+两者都应该返回 Agent 可读文本和结构化 JSON 字段。
 
-## 12. Capture And Pipeline
+## 12. Capture 与 Pipeline
 
-Capture flow:
+Capture 流程：
 
 ```text
 1. Validate tenant/user/session/session_key.
@@ -655,7 +655,7 @@ Capture flow:
 8. Return capture result and emit metrics.
 ```
 
-Idempotency:
+幂等：
 
 ```text
 idempotency_records:
@@ -667,9 +667,9 @@ idempotency_records:
   expires_at
 ```
 
-Same key and same hash returns cached response. Same key and different hash returns conflict.
+相同 key 且相同 hash 返回缓存响应。相同 key 但不同 hash 返回冲突。
 
-Pipeline triggers:
+Pipeline 触发：
 
 ```text
 L1:
@@ -696,7 +696,7 @@ L3:
   pending flag reruns L3 after current run if new L2 work arrived
 ```
 
-Pipeline state:
+Pipeline state：
 
 ```text
 session_key
@@ -711,23 +711,23 @@ last_activity_at
 l1_retry_count
 ```
 
-V0 uses in-process asyncio queues. V1 adds DB-backed `pipeline_jobs` and a separate worker process.
+V0 使用 in-process asyncio queues。V1 增加 DB-backed `pipeline_jobs` 和独立 worker process。
 
 ## 13. Prompt System
 
-Prompt modules are first-class code with source attribution, parser tests, and schema validation.
+Prompt 模块是一等代码，必须带来源 attribution、parser tests 和 schema validation。
 
 ### L1 Extraction
 
-Adapted from `src/core/prompts/l1-extraction.ts`.
+改编自 `src/core/prompts/l1-extraction.ts`。
 
-Inputs:
+输入：
 
 - `previous_scene_name`
-- `background_messages`: context only; do not extract from these
-- `new_messages`: extract only from these
+- `background_messages`：只作为上下文，不从中抽取
+- `new_messages`：只从这里抽取
 
-Output:
+输出：
 
 ```text
 [
@@ -747,32 +747,32 @@ Output:
 ]
 ```
 
-Parser must handle markdown fences, extra text, control characters, missing metadata, empty memories, and invalid types.
+Parser 必须处理 markdown fence、额外解释文本、控制字符、缺失 metadata、空 memories 和非法 type。
 
 ### L1 Dedup
 
-Adapted from `src/core/prompts/l1-dedup.ts`.
+改编自 `src/core/prompts/l1-dedup.ts`。
 
-Actions:
+动作：
 
 - `store`
 - `update`
 - `skip`
 - `merge`
 
-Dedup candidate retrieval:
+Dedup 候选召回：
 
-- vector top-K when available
-- FTS top-K fallback
-- skip dedup and store all when neither is available
+- 有 vector 时使用 vector top-K
+- 否则使用 FTS top-K fallback
+- 两者都不可用时跳过 dedup，全部 store
 
 ### L2 Scene
 
-Adapted from `src/core/prompts/scene-extraction.ts`.
+改编自 `src/core/prompts/scene-extraction.ts`。
 
-The prompt semantics should remain close to Tencent's version: scene files are Markdown narrative documents, not flat lists; the LLM can read/write/edit scene files; deletion is represented by `[DELETED]`.
+提示词语义应尽量贴近 Tencent 版本：scene files 是 Markdown narrative documents，不是扁平列表；LLM 可以 read/write/edit scene files；删除用 `[DELETED]` 表示。
 
-Python should not let the LLM touch the real file system directly. It should use a controlled tool runner:
+Python 不应让 LLM 直接接触真实文件系统，而应使用受控 tool runner：
 
 ```text
 SceneToolRunner:
@@ -782,15 +782,15 @@ SceneToolRunner:
   delete_scene(filename)
 ```
 
-Enforced constraints:
+强制约束：
 
-- no path traversal
-- read whitelist from existing scene file list
-- only `.md` scene files
-- delete maps to `[DELETED]`
-- engineering side syncs scene index
+- 禁止路径穿越
+- read whitelist 来自 existing scene file list
+- 只能操作 `.md` scene files
+- delete 映射为 `[DELETED]`
+- 工程侧同步 scene index
 
-Scene Markdown format:
+Scene Markdown 格式：
 
 ```markdown
 -----META-START-----
@@ -811,11 +811,11 @@ heat: ...
 
 ### L3 Persona
 
-Adapted from `src/core/prompts/persona-generation.ts`.
+改编自 `src/core/prompts/persona-generation.ts`。
 
-Inputs:
+输入：
 
-- `mode`: `first` or `incremental`
+- `mode`：`first` 或 `incremental`
 - `current_time`
 - `total_processed`
 - `scene_count`
@@ -824,7 +824,7 @@ Inputs:
 - `existing_persona`
 - `trigger_info`
 
-Python uses a controlled persona runner:
+Python 使用受控 persona runner：
 
 ```text
 PersonaToolRunner:
@@ -832,19 +832,19 @@ PersonaToolRunner:
   edit_persona(edits)
 ```
 
-Constraints:
+约束：
 
-- only `persona.md`
-- no scene file reads
-- no scene navigation in model output
-- persona body length target is 2000 characters or less
-- engineering appends scene navigation after generation
+- 只能操作 `persona.md`
+- 不允许读取 scene files
+- 模型输出中不允许包含 scene navigation
+- persona 正文目标长度不超过 2000 字符
+- 工程侧在生成后追加 scene navigation
 
 ## 14. Context Offload
 
-Offload mirrors Tencent's short-term symbolic memory.
+Offload 对齐 Tencent 的短期符号化记忆。
 
-Tables:
+表：
 
 ```text
 offload_refs
@@ -853,7 +853,7 @@ offload_nodes
 offload_edges
 ```
 
-REST API:
+REST API：
 
 ```text
 POST /v1/offload/refs
@@ -868,7 +868,7 @@ GET  /v1/offload/graph/{session_id}
 POST /v1/offload/restore
 ```
 
-Layering:
+分层：
 
 ```text
 L1 offload:
@@ -887,16 +887,16 @@ L3 compression:
   emergency: keep recent user messages and task graph
 ```
 
-Implementation phases:
+实现阶段：
 
-- V0.5a: refs + restore API
-- V0.5b: tool pair summary + offload entries
-- V0.5c: Mermaid graph generation
-- V0.5d: compressor policy + SDK helper
+- V0.5a：refs + restore API
+- V0.5b：tool pair summary + offload entries
+- V0.5c：Mermaid graph generation
+- V0.5d：compressor policy + SDK helper
 
-## 15. Configuration
+## 15. 配置
 
-Initial config shape:
+初始配置形态：
 
 ```yaml
 server:
@@ -964,9 +964,9 @@ offload:
   mmd_max_token_ratio: 0.2
 ```
 
-## 16. Testing Strategy
+## 16. 测试策略
 
-Unit tests:
+单元测试：
 
 - config validation
 - Pydantic schemas
@@ -976,7 +976,7 @@ Unit tests:
 - capture idempotency
 - deferred embedding registry
 
-Prompt/parser tests:
+Prompt/parser 测试：
 
 - L1 extraction JSON parsing
 - L1 dedup decisions
@@ -984,7 +984,7 @@ Prompt/parser tests:
 - scene tool sandbox
 - persona tool sandbox
 
-Pipeline tests:
+Pipeline 测试：
 
 - threshold trigger
 - warmup progression
@@ -995,7 +995,7 @@ Pipeline tests:
 - session-end scoped flush
 - shutdown background drain
 
-API tests:
+API 测试：
 
 - `/health`
 - cold-start `/v1/recall/before`
@@ -1005,22 +1005,22 @@ API tests:
 - `/v1/admin/pipeline/status`
 - user deletion
 
-Integration tests:
+集成测试：
 
 - capture turns -> run L1 -> search -> run L2 -> run L3 -> recall
 - embedding disabled -> FTS fallback
 - FTS unavailable -> vector fallback
 - restart -> checkpoint restore
 
-Quality gates:
+质量门禁：
 
 - ruff
-- mypy or pyright
+- mypy 或 pyright
 - pytest
 - migration smoke tests
 - OpenAPI generation check
 
-## 17. Implementation Plan
+## 17. 实现计划
 
 ### V0.1 REST + MemoryCore + SQLite L0
 
@@ -1036,7 +1036,7 @@ Quality gates:
 
 ### V0.2 L1 + Hybrid Recall
 
-- prompt migration: L1 extraction and dedup
+- prompt migration：L1 extraction and dedup
 - L1 extractor
 - MemoryAtom store
 - embedding provider
@@ -1046,7 +1046,7 @@ Quality gates:
 - pipeline L1 threshold and idle
 - tests
 
-### V0.3 Pipeline Completion + Postgres
+### V0.3 Pipeline 完整化 + Postgres
 
 - warmup, L2, L3 queues
 - checkpoint restore
@@ -1072,7 +1072,7 @@ Quality gates:
 - Mermaid builder
 - compressor SDK helper
 
-### V0.6 Production Hardening
+### V0.6 生产强化
 
 - auth scopes
 - audit/export/import/delete-user
@@ -1080,22 +1080,22 @@ Quality gates:
 - migration tooling
 - Docker
 
-## 18. Success Criteria
+## 18. 成功标准
 
-V0.1 is successful when a Python agent can record turns through REST and search raw conversations after restart.
+V0.1 成功标准：Python Agent 可以通过 REST 记录 turns，并在重启后搜索原始对话。
 
-V0.2 is successful when captured turns can produce L1 memories and the next recall call returns stable and dynamic context.
+V0.2 成功标准：已捕获的 turns 可以生成 L1 memories，并且下一次 recall 调用能返回 stable 和 dynamic context。
 
-V0.4 is successful when L1 memories evolve into scene blocks and a persona profile, with traceability back to L0 evidence.
+V0.4 成功标准：L1 memories 可以演化为 scene blocks 和 persona profile，并能追溯回 L0 evidence。
 
-V0.5 is successful when long tool outputs can be offloaded to refs, summarized into graph nodes, restored by `node_id` or `result_ref`, and used by an Agent without losing raw evidence.
+V0.5 成功标准：长工具输出可以 offload 到 refs，总结为 graph nodes，通过 `node_id` 或 `result_ref` 恢复，并能被 Agent 使用且不丢失原始证据。
 
-## 19. Self-Review
+## 19. 自检
 
-Completeness scan: no unresolved markers or undefined sections remain.
+完整性扫描：没有遗留标记，章节完整。
 
-Consistency check: the architecture consistently routes behavior through `MemoryCore`, keeps FastAPI as an adapter, and preserves L0/L1/L2/L3 traceability.
+一致性检查：架构始终通过 `MemoryCore` 路由行为，保持 FastAPI 作为 adapter，并保留 L0/L1/L2/L3 可追溯性。
 
-Scope check: this is a full-system design but implementation is explicitly staged. V0.1 and V0.2 are small enough for separate implementation plans.
+范围检查：这是完整系统设计，但实现已明确分阶段推进。V0.1 和 V0.2 足够小，可以分别制定实现计划。
 
-Ambiguity check: prompt reuse is explicitly MIT-attributed and high fidelity; L1 types are intentionally limited to Tencent's initial `persona`, `episodic`, and `instruction` categories for compatibility.
+歧义检查：prompt 复用明确要求 MIT attribution 和高保真；L1 类型有意限制为 Tencent 初始的 `persona`、`episodic` 和 `instruction`，以保持兼容性。
