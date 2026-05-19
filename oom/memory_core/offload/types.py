@@ -45,6 +45,8 @@ class RestoreOffloadResult(BaseModel):
 class OffloadEntry(BaseModel):
     id: str
     tenant_id: str = "default"
+    user_id: str = ""
+    agent_id: str = ""
     session_id: str
     tool_call_id: str
     tool_name: str
@@ -58,6 +60,8 @@ class OffloadEntry(BaseModel):
 
 class CreateOffloadEntryRequest(BaseModel):
     tenant_id: str = "default"
+    user_id: str = ""
+    agent_id: str = ""
     session_id: str
     tool_call_id: str
     tool_name: str

@@ -15,6 +15,8 @@ def build_offload_entry(
     score: int,
     result_ref: str,
     tenant_id: str = "default",
+    user_id: str = "",
+    agent_id: str = "",
     node_id: str | None = None,
 ) -> OffloadEntry:
     final_node_id = node_id or f"N{abs(hash((session_id, tool_call_id))) % 100000}"
@@ -22,6 +24,8 @@ def build_offload_entry(
     return OffloadEntry(
         id=entry_id,
         tenant_id=tenant_id,
+        user_id=user_id,
+        agent_id=agent_id,
         session_id=session_id,
         tool_call_id=tool_call_id,
         tool_name=tool_name,

@@ -7,6 +7,7 @@ from oom.memory_core.admin.export_import import ExportRequest, ImportResult, Mem
 from oom.memory_core.config import AppConfig
 from oom.memory_core.core import MemoryCore
 from oom.memory_core.offload.ref_store import OffloadRefStore
+from oom.memory_core.pipeline.checkpoint import PipelineSessionState
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
@@ -28,18 +29,34 @@ async def export_memory(
     core: MemoryCore = Depends(get_memory_core),
 ) -> MemoryExport:
     config = getattr(request.app.state, "config", AppConfig())
-    refs = OffloadRefStore(config.offload.data_dir).list_ref_metadata(payload.tenant_id)
+    refs = OffloadRefStore(config.offload.data_dir).export_refs(payload.tenant_id)
     service = MemoryExportImportService(core.store, pipeline_state=core.pipeline.dump_states())
     return await service.export_tenant(payload.tenant_id, offload_refs=refs)
 
 
 @router.post("/admin/import", response_model=ImportResult)
-async def import_memory(payload: MemoryExport, core: MemoryCore = Depends(get_memory_core)) -> ImportResult:
+async def import_memory(
+    payload: MemoryExport,
+    request: Request,
+    core: MemoryCore = Depends(get_memory_core),
+) -> ImportResult:
     service = MemoryExportImportService(core.store, pipeline_state=core.pipeline.dump_states())
     try:
-        return await service.import_export(payload)
+        result = await service.import_export(payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    config = getattr(request.app.state, "config", AppConfig())
+    ref_count = OffloadRefStore(config.offload.data_dir).import_refs(
+        payload.records.get("offload_refs", []),
+        payload.tenant_id,
+    )
+    pipeline_state = payload.records.get("pipeline_state", {})
+    if isinstance(pipeline_state, dict):
+        states = {key: PipelineSessionState.model_validate(value) for key, value in pipeline_state.items()}
+        core.pipeline.load_states(states)
+        result.imported["pipeline_state"] = len(states)
+    result.imported["offload_refs"] = ref_count
+    return result
 
 
 @router.post("/admin/delete-user", response_model=DeleteUserResult)

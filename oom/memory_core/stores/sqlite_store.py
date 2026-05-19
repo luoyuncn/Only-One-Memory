@@ -125,6 +125,8 @@ class SqliteMemoryStore:
             CREATE TABLE IF NOT EXISTS offload_entries (
                 id TEXT PRIMARY KEY,
                 tenant_id TEXT NOT NULL,
+                user_id TEXT NOT NULL DEFAULT '',
+                agent_id TEXT NOT NULL DEFAULT '',
                 session_id TEXT NOT NULL,
                 tool_call_id TEXT NOT NULL,
                 tool_name TEXT NOT NULL,
@@ -152,6 +154,8 @@ class SqliteMemoryStore:
             ON audit_logs(created_at);
             """
         )
+        await self._ensure_column("offload_entries", "user_id", "TEXT NOT NULL DEFAULT ''")
+        await self._ensure_column("offload_entries", "agent_id", "TEXT NOT NULL DEFAULT ''")
         await self._db.commit()
 
     async def close(self) -> None:
@@ -500,10 +504,12 @@ class SqliteMemoryStore:
         await db.execute(
             """
             INSERT INTO offload_entries(
-                id, tenant_id, session_id, tool_call_id, tool_name, summary, score,
+                id, tenant_id, user_id, agent_id, session_id, tool_call_id, tool_name, summary, score,
                 node_id, result_ref, metadata_json, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
+                user_id = excluded.user_id,
+                agent_id = excluded.agent_id,
                 summary = excluded.summary,
                 score = excluded.score,
                 node_id = excluded.node_id,
@@ -513,6 +519,8 @@ class SqliteMemoryStore:
             (
                 entry.id,
                 entry.tenant_id,
+                entry.user_id,
+                entry.agent_id,
                 entry.session_id,
                 entry.tool_call_id,
                 entry.tool_name,
@@ -635,37 +643,55 @@ class SqliteMemoryStore:
         memory_ids = await self._select_ids(
             "SELECT id FROM memories WHERE tenant_id = ? AND user_id = ?", (tenant_id, user_id)
         )
-        await self._delete_by_ids("conversation_events_fts", "event_id", event_ids)
-        await self._delete_by_ids("l0_embeddings", "event_id", event_ids)
-        await self._delete_by_ids("memories_fts", "memory_id", memory_ids)
-        await self._delete_by_ids("l1_embeddings", "memory_id", memory_ids)
-        await self._delete_by_ids("memory_sources", "memory_id", memory_ids)
+        await db.execute("BEGIN")
+        try:
+            await self._delete_by_ids("conversation_events_fts", "event_id", event_ids)
+            await self._delete_by_ids("l0_embeddings", "event_id", event_ids)
+            await self._delete_by_ids("memories_fts", "memory_id", memory_ids)
+            await self._delete_by_ids("l1_embeddings", "memory_id", memory_ids)
+            await self._delete_by_ids("memory_sources", "memory_id", memory_ids)
 
-        l0 = await self._delete_count(
-            "DELETE FROM conversation_events WHERE tenant_id = ? AND user_id = ?", (tenant_id, user_id)
-        )
-        l1 = await self._delete_count("DELETE FROM memories WHERE tenant_id = ? AND user_id = ?", (tenant_id, user_id))
-        l2 = await self._delete_count("DELETE FROM scenes WHERE tenant_id = ? AND user_id = ?", (tenant_id, user_id))
-        l3 = await self._delete_count(
-            "DELETE FROM profiles WHERE tenant_id = ? AND scope_id = ?", (tenant_id, user_id)
-        )
-        offload = await self._delete_count(
-            """
-            DELETE FROM offload_entries
-            WHERE tenant_id = ? AND json_extract(metadata_json, '$.user_id') = ?
-            """,
-            (tenant_id, user_id),
-        )
-        audit = await self._delete_count(
-            """
-            DELETE FROM audit_logs
-            WHERE json_extract(metadata_json, '$.tenant_id') = ?
-              AND json_extract(metadata_json, '$.user_id') = ?
-            """,
-            (tenant_id, user_id),
-        )
-        await db.commit()
-        return {"l0": l0, "l1": l1, "l2": l2, "l3": l3, "offload": offload, "indexes": len(event_ids) + len(memory_ids), "audit": audit}
+            l0 = await self._delete_count(
+                "DELETE FROM conversation_events WHERE tenant_id = ? AND user_id = ?", (tenant_id, user_id)
+            )
+            l1 = await self._delete_count(
+                "DELETE FROM memories WHERE tenant_id = ? AND user_id = ?", (tenant_id, user_id)
+            )
+            l2 = await self._delete_count(
+                "DELETE FROM scenes WHERE tenant_id = ? AND user_id = ?", (tenant_id, user_id)
+            )
+            l3 = await self._delete_count(
+                "DELETE FROM profiles WHERE tenant_id = ? AND scope_id = ?", (tenant_id, user_id)
+            )
+            offload = await self._delete_count(
+                """
+                DELETE FROM offload_entries
+                WHERE tenant_id = ?
+                  AND (user_id = ? OR json_extract(metadata_json, '$.user_id') = ?)
+                """,
+                (tenant_id, user_id, user_id),
+            )
+            audit = await self._delete_count(
+                """
+                DELETE FROM audit_logs
+                WHERE json_extract(metadata_json, '$.tenant_id') = ?
+                  AND json_extract(metadata_json, '$.user_id') = ?
+                """,
+                (tenant_id, user_id),
+            )
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+        return {
+            "l0": l0,
+            "l1": l1,
+            "l2": l2,
+            "l3": l3,
+            "offload": offload,
+            "indexes": len(event_ids) + len(memory_ids),
+            "audit": audit,
+        }
 
     async def _try_enable_sqlite_vec(self) -> None:
         if self._db is None:
@@ -692,6 +718,13 @@ class SqliteMemoryStore:
         if row is None:
             return 0
         return int(row["count"])
+
+    async def _ensure_column(self, table_name: str, column_name: str, definition: str) -> None:
+        db = self._require_db()
+        cursor = await db.execute(f"PRAGMA table_info({table_name})")
+        columns = {str(row["name"]) for row in await cursor.fetchall()}
+        if column_name not in columns:
+            await db.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}")
 
     async def _select_ids(self, sql: str, params: tuple[Any, ...]) -> list[str]:
         db = self._require_db()
@@ -839,6 +872,8 @@ class SqliteMemoryStore:
             {
                 "id": row["id"],
                 "tenant_id": row["tenant_id"],
+                "user_id": row["user_id"],
+                "agent_id": row["agent_id"],
                 "session_id": row["session_id"],
                 "tool_call_id": row["tool_call_id"],
                 "tool_name": row["tool_name"],

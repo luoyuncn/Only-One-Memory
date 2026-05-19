@@ -25,7 +25,7 @@ router = APIRouter()
 def _ref_store(request: Request) -> OffloadRefStore:
     store = getattr(request.app.state, "offload_ref_store", None)
     if store is None:
-        config = AppConfig()
+        config = getattr(request.app.state, "config", AppConfig())
         store = OffloadRefStore(config.offload.data_dir)
         request.app.state.offload_ref_store = store
     return store
@@ -37,9 +37,9 @@ async def create_ref(payload: CreateOffloadRefRequest, request: Request) -> Offl
 
 
 @router.get("/offload/refs/{ref_id}", response_model=OffloadRef)
-async def get_ref(ref_id: str, request: Request) -> OffloadRef:
+async def get_ref(ref_id: str, tenant_id: str, session_id: str, request: Request) -> OffloadRef:
     ref = _ref_store(request).get_ref(ref_id)
-    if ref is None:
+    if ref is None or ref.tenant_id != tenant_id or ref.session_id != session_id:
         raise HTTPException(status_code=404, detail="offload ref not found")
     return ref
 
@@ -59,7 +59,11 @@ async def restore(
     if result_ref is None:
         raise HTTPException(status_code=400, detail="result_ref or node_id is required")
     try:
-        result = OffloadRestoreService(_ref_store(request)).restore_by_ref(result_ref)
+        result = OffloadRestoreService(_ref_store(request)).restore_by_ref(
+            result_ref,
+            tenant_id=payload.tenant_id,
+            session_id=payload.session_id,
+        )
         increment("oom_offload_restore_total")
         return result
     except KeyError as exc:
@@ -67,9 +71,18 @@ async def restore(
 
 
 @router.post("/offload/entries", response_model=OffloadEntry)
-async def create_entry(payload: CreateOffloadEntryRequest, core: MemoryCore = Depends(get_memory_core)) -> OffloadEntry:
+async def create_entry(
+    payload: CreateOffloadEntryRequest,
+    request: Request,
+    core: MemoryCore = Depends(get_memory_core),
+) -> OffloadEntry:
+    ref = _ref_store(request).get_ref(payload.result_ref)
+    user_id = payload.user_id or (ref.user_id if ref is not None else "")
+    agent_id = payload.agent_id or (ref.agent_id if ref is not None else "")
     entry = build_offload_entry(
         tenant_id=payload.tenant_id,
+        user_id=user_id,
+        agent_id=agent_id,
         session_id=payload.session_id,
         tool_call_id=payload.tool_call_id,
         tool_name=payload.tool_name,

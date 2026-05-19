@@ -50,7 +50,11 @@ CREATE EXTENSION IF NOT EXISTS vector;
 uv run python scripts/init_postgres.py
 ```
 
-后续引入 Alembic 后，迁移命令应统一通过 `uv run alembic upgrade head` 执行。
+生产 schema 迁移通过 Alembic baseline 管理：
+
+```bash
+uv run alembic upgrade head
+```
 
 ## 备份
 

@@ -161,6 +161,8 @@ class PostgresMemoryStore:
                 CREATE TABLE IF NOT EXISTS offload_entries (
                     id TEXT PRIMARY KEY,
                     tenant_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL DEFAULT '',
+                    agent_id TEXT NOT NULL DEFAULT '',
                     session_id TEXT NOT NULL,
                     tool_call_id TEXT NOT NULL,
                     tool_name TEXT NOT NULL,
@@ -179,6 +181,8 @@ class PostgresMemoryStore:
                 ON offload_entries(tenant_id, session_id, created_at)
                 """
             )
+            await conn.execute("ALTER TABLE offload_entries ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT ''")
+            await conn.execute("ALTER TABLE offload_entries ADD COLUMN IF NOT EXISTS agent_id TEXT NOT NULL DEFAULT ''")
             await conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -497,10 +501,12 @@ class PostgresMemoryStore:
             await conn.execute(
                 """
                 INSERT INTO offload_entries(
-                    id, tenant_id, session_id, tool_call_id, tool_name, summary, score,
+                    id, tenant_id, user_id, agent_id, session_id, tool_call_id, tool_name, summary, score,
                     node_id, result_ref, metadata_json, created_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11)
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13)
                 ON CONFLICT(id) DO UPDATE SET
+                    user_id = excluded.user_id,
+                    agent_id = excluded.agent_id,
                     summary = excluded.summary,
                     score = excluded.score,
                     node_id = excluded.node_id,
@@ -509,6 +515,8 @@ class PostgresMemoryStore:
                 """,
                 entry.id,
                 entry.tenant_id,
+                entry.user_id,
+                entry.agent_id,
                 entry.session_id,
                 entry.tool_call_id,
                 entry.tool_name,
@@ -626,78 +634,80 @@ class PostgresMemoryStore:
     async def delete_user_records(self, tenant_id: str, user_id: str) -> dict[str, int]:
         pool = self._require_pool()
         async with pool.acquire() as conn:
-            l0 = await conn.fetchval(
-                """
-                WITH deleted AS (
-                    DELETE FROM conversation_events
-                    WHERE tenant_id = $1 AND user_id = $2
-                    RETURNING id
+            async with conn.transaction():
+                l0 = await conn.fetchval(
+                    """
+                    WITH deleted AS (
+                        DELETE FROM conversation_events
+                        WHERE tenant_id = $1 AND user_id = $2
+                        RETURNING id
+                    )
+                    SELECT count(*) FROM deleted
+                    """,
+                    tenant_id,
+                    user_id,
                 )
-                SELECT count(*) FROM deleted
-                """,
-                tenant_id,
-                user_id,
-            )
-            l1 = await conn.fetchval(
-                """
-                WITH deleted AS (
-                    DELETE FROM memories
-                    WHERE tenant_id = $1 AND user_id = $2
-                    RETURNING id
+                l1 = await conn.fetchval(
+                    """
+                    WITH deleted AS (
+                        DELETE FROM memories
+                        WHERE tenant_id = $1 AND user_id = $2
+                        RETURNING id
+                    )
+                    SELECT count(*) FROM deleted
+                    """,
+                    tenant_id,
+                    user_id,
                 )
-                SELECT count(*) FROM deleted
-                """,
-                tenant_id,
-                user_id,
-            )
-            l2 = await conn.fetchval(
-                """
-                WITH deleted AS (
-                    DELETE FROM scenes
-                    WHERE tenant_id = $1 AND user_id = $2
-                    RETURNING id
+                l2 = await conn.fetchval(
+                    """
+                    WITH deleted AS (
+                        DELETE FROM scenes
+                        WHERE tenant_id = $1 AND user_id = $2
+                        RETURNING id
+                    )
+                    SELECT count(*) FROM deleted
+                    """,
+                    tenant_id,
+                    user_id,
                 )
-                SELECT count(*) FROM deleted
-                """,
-                tenant_id,
-                user_id,
-            )
-            l3 = await conn.fetchval(
-                """
-                WITH deleted AS (
-                    DELETE FROM profiles
-                    WHERE tenant_id = $1 AND scope_id = $2
-                    RETURNING scope_id
+                l3 = await conn.fetchval(
+                    """
+                    WITH deleted AS (
+                        DELETE FROM profiles
+                        WHERE tenant_id = $1 AND scope_id = $2
+                        RETURNING scope_id
+                    )
+                    SELECT count(*) FROM deleted
+                    """,
+                    tenant_id,
+                    user_id,
                 )
-                SELECT count(*) FROM deleted
-                """,
-                tenant_id,
-                user_id,
-            )
-            offload = await conn.fetchval(
-                """
-                WITH deleted AS (
-                    DELETE FROM offload_entries
-                    WHERE tenant_id = $1 AND metadata_json->>'user_id' = $2
-                    RETURNING id
+                offload = await conn.fetchval(
+                    """
+                    WITH deleted AS (
+                        DELETE FROM offload_entries
+                        WHERE tenant_id = $1
+                          AND (user_id = $2 OR metadata_json->>'user_id' = $2)
+                        RETURNING id
+                    )
+                    SELECT count(*) FROM deleted
+                    """,
+                    tenant_id,
+                    user_id,
                 )
-                SELECT count(*) FROM deleted
-                """,
-                tenant_id,
-                user_id,
-            )
-            audit = await conn.fetchval(
-                """
-                WITH deleted AS (
-                    DELETE FROM audit_logs
-                    WHERE metadata_json->>'tenant_id' = $1 AND metadata_json->>'user_id' = $2
-                    RETURNING id
+                audit = await conn.fetchval(
+                    """
+                    WITH deleted AS (
+                        DELETE FROM audit_logs
+                        WHERE metadata_json->>'tenant_id' = $1 AND metadata_json->>'user_id' = $2
+                        RETURNING id
+                    )
+                    SELECT count(*) FROM deleted
+                    """,
+                    tenant_id,
+                    user_id,
                 )
-                SELECT count(*) FROM deleted
-                """,
-                tenant_id,
-                user_id,
-            )
         return {
             "l0": int(l0),
             "l1": int(l1),
@@ -835,6 +845,8 @@ class PostgresMemoryStore:
             {
                 "id": record["id"],
                 "tenant_id": record["tenant_id"],
+                "user_id": record["user_id"],
+                "agent_id": record["agent_id"],
                 "session_id": record["session_id"],
                 "tool_call_id": record["tool_call_id"],
                 "tool_name": record["tool_name"],

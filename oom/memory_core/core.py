@@ -20,6 +20,7 @@ from oom.memory_core.types import (
     ConversationSearchRequest,
     ConversationSearchResult,
     L0Event,
+    MemoryAtom,
     MemorySearchRequest,
     MemorySearchResult,
     ProfileDocument,
@@ -42,6 +43,7 @@ class MemoryCore:
             every_n_conversations=config.pipeline.every_n_conversations,
             enable_warmup=config.pipeline.enable_warmup,
             idle_timeout_seconds=config.pipeline.idle_timeout_seconds,
+            l1_runner=self._run_l1_for_session,
         )
         self._checkpoint_store = CheckpointStore(config.pipeline.checkpoint_path) if config.pipeline.checkpoint_path else None
 
@@ -208,6 +210,10 @@ class MemoryCore:
         await self.initialize()
         return await self.store.list_offload_entries(tenant_id, session_id)
 
+    async def flush_l1_session(self, session_key: str) -> None:
+        await self.initialize()
+        await self.pipeline.flush_session(session_key)
+
     @staticmethod
     def _event_id(request: CaptureTurnRequest, index: int) -> str:
         raw = f"{request.tenant_id}:{request.session_key}:{request.idempotency_key}:{index}"
@@ -218,6 +224,38 @@ class MemoryCore:
         length = float(len(content))
         checksum = float(sum(ord(char) for char in content) % 997)
         return [length, checksum, 1.0]
+
+    async def _run_l1_for_session(self, session_key: str) -> int:
+        events = await self.store.query_l0_for_l1(filters={"session_key": session_key}, limit=100)
+        count = 0
+        for event in events:
+            if event.role not in {"user", "assistant"}:
+                continue
+            memory = MemoryAtom(
+                id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"l1:{event.id}")),
+                tenant_id=event.tenant_id,
+                user_id=event.user_id,
+                agent_id=event.agent_id,
+                session_id=event.session_id,
+                session_key=event.session_key,
+                content=event.content,
+                type="episodic",
+                priority=50,
+                confidence=0.7,
+                source_event_ids=[event.id],
+                timestamps=[event.event_ts.isoformat()],
+                metadata={"source": "pipeline_l1"},
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            )
+            await self.store.upsert_l1(memory, embedding=self._embedding_for(memory.content))
+            count += 1
+        if count:
+            state = self.pipeline.state_for(session_key)
+            if state is not None:
+                state.last_l1_cursor = events[-1].id
+            self.pipeline.trigger_l2(session_key)
+        return count
 
     async def _search_l1_hybrid(
         self, query: str, limit: int, filters: dict[str, str | None]

@@ -19,3 +19,4 @@
 - 2026-05-19：V0.6 新增 `/v1/metrics` Prometheus 文本指标与结构化事件 helper，覆盖 capture、search、recall、pipeline、L1/L2/L3 与 offload restore 计数。
 - 2026-05-19：V0.6 新增 Dockerfile、Postgres+pgvector compose、运维手册，并将 uvicorn 加入运行依赖以支持容器启动。
 - 2026-05-19：规划总验收阶段补充 pyright 类型收口，修正 SceneExtractor 的 updated_at 类型转换、SQLite 计数空行收窄与测试替身类型标注。
+- 2026-05-19：根据 code review 修复 Offload 跨租户 restore/get 泄露风险，补强 offload entries 的 user/agent 关联、删除事务、export/import refs 与 pipeline state 恢复，并新增 Alembic baseline migration。

@@ -50,3 +50,49 @@ async def test_admin_delete_user_removes_l0_records(tmp_path, monkeypatch):
     assert response.status_code == 200
     assert response.json()["deleted"]["l0"] == 1
     assert search.json()["total"] == 0
+
+
+async def test_admin_delete_user_removes_offload_entries_linked_by_ref(tmp_path, monkeypatch):
+    monkeypatch.setenv("OOM_SQLITE_PATH", str(tmp_path / "memory.db"))
+    monkeypatch.setenv("OOM_DATA_DIR", str(tmp_path / "offload"))
+    monkeypatch.delenv("OOM_API_KEY", raising=False)
+    monkeypatch.delenv("ONLY_ONE_MEMORY_API_KEY", raising=False)
+    app = create_app()
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            ref = await client.post(
+                "/v1/offload/refs",
+                json={
+                    "tenant_id": "default",
+                    "user_id": "u1",
+                    "agent_id": "a1",
+                    "session_id": "s1",
+                    "kind": "tool_result",
+                    "content": "raw",
+                    "metadata": {},
+                },
+            )
+            await client.post(
+                "/v1/offload/entries",
+                json={
+                    "tenant_id": "default",
+                    "session_id": "s1",
+                    "tool_call_id": "call1",
+                    "tool_name": "read_file",
+                    "summary": "读取文件",
+                    "score": 8,
+                    "node_id": "N1",
+                    "result_ref": ref.json()["id"],
+                },
+            )
+            response = await client.post("/v1/admin/delete-user", json={"tenant_id": "default", "user_id": "u1"})
+            entries = await client.get("/v1/offload/entries?tenant_id=default&session_id=s1")
+    finally:
+        core = getattr(app.state, "memory_core", None)
+        if core is not None:
+            await core.close()
+
+    assert response.status_code == 200
+    assert response.json()["deleted"]["offload"] >= 1
+    assert entries.json() == []
