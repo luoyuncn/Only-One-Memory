@@ -7,7 +7,16 @@ from typing import Any
 import aiosqlite
 
 from oom.memory_core.config import SqliteConfig
-from oom.memory_core.types import ConversationSearchHit, L0Event, MemoryAtom, MemorySearchHit, StoreCapabilities
+from oom.memory_core.offload.types import OffloadEntry
+from oom.memory_core.types import (
+    ConversationSearchHit,
+    L0Event,
+    MemoryAtom,
+    MemorySearchHit,
+    ProfileDocument,
+    SceneBlock,
+    StoreCapabilities,
+)
 
 
 class SqliteMemoryStore:
@@ -86,6 +95,48 @@ class SqliteMemoryStore:
 
             CREATE INDEX IF NOT EXISTS idx_memories_scope
             ON memories(tenant_id, user_id, agent_id, session_id);
+
+            CREATE TABLE IF NOT EXISTS scenes (
+                id TEXT PRIMARY KEY,
+                tenant_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                content TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                heat INTEGER NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_scenes_scope_filename
+            ON scenes(tenant_id, user_id, filename);
+
+            CREATE TABLE IF NOT EXISTS profiles (
+                tenant_id TEXT NOT NULL,
+                scope TEXT NOT NULL,
+                scope_id TEXT NOT NULL,
+                content TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(tenant_id, scope, scope_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS offload_entries (
+                id TEXT PRIMARY KEY,
+                tenant_id TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                tool_call_id TEXT NOT NULL,
+                tool_name TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                score INTEGER NOT NULL,
+                node_id TEXT NOT NULL,
+                result_ref TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_offload_entries_session
+            ON offload_entries(tenant_id, session_id, created_at);
             """
         )
         await self._db.commit()
@@ -331,6 +382,150 @@ class SqliteMemoryStore:
         scored.sort(key=lambda item: item[0], reverse=True)
         return [MemorySearchHit(memory=self._memory_from_row(row), score=float(score)) for score, row in scored[:limit]]
 
+    async def reindex_all(self) -> dict[str, int | None]:
+        db = self._require_db()
+        await db.execute("DELETE FROM conversation_events_fts")
+        await db.execute(
+            """
+            INSERT INTO conversation_events_fts(event_id, content)
+            SELECT id, content FROM conversation_events
+            """
+        )
+        await db.execute("DELETE FROM memories_fts")
+        await db.execute(
+            """
+            INSERT INTO memories_fts(memory_id, content)
+            SELECT id, content FROM memories
+            """
+        )
+        l0_count = await self._count_table("conversation_events")
+        l1_count = await self._count_table("memories")
+        await db.commit()
+        return {"l0": l0_count, "l1": l1_count, "l2": None, "l3": None}
+
+    async def list_scenes(self, tenant_id: str, user_id: str) -> list[SceneBlock]:
+        db = self._require_db()
+        cursor = await db.execute(
+            """
+            SELECT * FROM scenes
+            WHERE tenant_id = ? AND user_id = ?
+            ORDER BY updated_at DESC, filename ASC
+            """,
+            (tenant_id, user_id),
+        )
+        return [self._scene_from_row(row) for row in await cursor.fetchall()]
+
+    async def get_scene(self, scene_id: str, tenant_id: str) -> SceneBlock | None:
+        db = self._require_db()
+        cursor = await db.execute("SELECT * FROM scenes WHERE id = ? AND tenant_id = ?", (scene_id, tenant_id))
+        row = await cursor.fetchone()
+        return None if row is None else self._scene_from_row(row)
+
+    async def upsert_scene(self, scene: SceneBlock) -> SceneBlock:
+        db = self._require_db()
+        await db.execute(
+            """
+            INSERT INTO scenes(id, tenant_id, user_id, filename, content, summary, heat, metadata_json, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                filename = excluded.filename,
+                content = excluded.content,
+                summary = excluded.summary,
+                heat = excluded.heat,
+                metadata_json = excluded.metadata_json,
+                updated_at = excluded.updated_at
+            """,
+            (
+                scene.id,
+                scene.tenant_id,
+                scene.user_id,
+                scene.filename,
+                scene.content,
+                scene.summary,
+                scene.heat,
+                json.dumps(scene.metadata, ensure_ascii=False, sort_keys=True),
+                scene.updated_at.isoformat(),
+            ),
+        )
+        await db.commit()
+        return scene
+
+    async def get_profile(self, tenant_id: str, scope: str, scope_id: str) -> ProfileDocument | None:
+        db = self._require_db()
+        cursor = await db.execute(
+            "SELECT * FROM profiles WHERE tenant_id = ? AND scope = ? AND scope_id = ?",
+            (tenant_id, scope, scope_id),
+        )
+        row = await cursor.fetchone()
+        return None if row is None else self._profile_from_row(row)
+
+    async def upsert_profile(self, profile: ProfileDocument) -> ProfileDocument:
+        db = self._require_db()
+        await db.execute(
+            """
+            INSERT INTO profiles(tenant_id, scope, scope_id, content, metadata_json, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(tenant_id, scope, scope_id) DO UPDATE SET
+                content = excluded.content,
+                metadata_json = excluded.metadata_json,
+                updated_at = excluded.updated_at
+            """,
+            (
+                profile.tenant_id,
+                profile.scope,
+                profile.scope_id,
+                profile.content,
+                json.dumps(profile.metadata, ensure_ascii=False, sort_keys=True),
+                profile.updated_at.isoformat(),
+            ),
+        )
+        await db.commit()
+        return profile
+
+    async def upsert_offload_entry(self, entry: OffloadEntry) -> OffloadEntry:
+        db = self._require_db()
+        await db.execute(
+            """
+            INSERT INTO offload_entries(
+                id, tenant_id, session_id, tool_call_id, tool_name, summary, score,
+                node_id, result_ref, metadata_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                summary = excluded.summary,
+                score = excluded.score,
+                node_id = excluded.node_id,
+                result_ref = excluded.result_ref,
+                metadata_json = excluded.metadata_json
+            """,
+            (
+                entry.id,
+                entry.tenant_id,
+                entry.session_id,
+                entry.tool_call_id,
+                entry.tool_name,
+                entry.summary,
+                entry.score,
+                entry.node_id,
+                entry.result_ref,
+                json.dumps(entry.metadata, ensure_ascii=False, sort_keys=True),
+                entry.created_at.isoformat() if entry.created_at else "",
+            ),
+        )
+        await db.commit()
+        return entry
+
+    async def list_offload_entries(self, tenant_id: str, session_id: str) -> list[OffloadEntry]:
+        db = self._require_db()
+        cursor = await db.execute(
+            """
+            SELECT * FROM offload_entries
+            WHERE tenant_id = ? AND session_id = ?
+            ORDER BY created_at ASC, node_id ASC
+            """,
+            (tenant_id, session_id),
+        )
+        return [self._offload_entry_from_row(row) for row in await cursor.fetchall()]
+
     async def _try_enable_sqlite_vec(self) -> None:
         if self._db is None:
             return
@@ -348,6 +543,12 @@ class SqliteMemoryStore:
         if self._db is None:
             raise RuntimeError("SQLite memory store is not initialized")
         return self._db
+
+    async def _count_table(self, table_name: str) -> int:
+        db = self._require_db()
+        cursor = await db.execute(f"SELECT count(*) AS count FROM {table_name}")
+        row = await cursor.fetchone()
+        return int(row["count"])
 
     @staticmethod
     def _filters_sql(filters: dict[str, Any] | None, alias: str = "e") -> tuple[str, list[Any]]:
@@ -440,6 +641,53 @@ class SqliteMemoryStore:
                 "metadata": json.loads(row["metadata_json"]),
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"],
+            }
+        )
+
+    @staticmethod
+    def _scene_from_row(row: aiosqlite.Row) -> SceneBlock:
+        return SceneBlock.model_validate(
+            {
+                "id": row["id"],
+                "tenant_id": row["tenant_id"],
+                "user_id": row["user_id"],
+                "filename": row["filename"],
+                "content": row["content"],
+                "summary": row["summary"],
+                "heat": row["heat"],
+                "metadata": json.loads(row["metadata_json"]),
+                "updated_at": row["updated_at"],
+            }
+        )
+
+    @staticmethod
+    def _profile_from_row(row: aiosqlite.Row) -> ProfileDocument:
+        return ProfileDocument.model_validate(
+            {
+                "tenant_id": row["tenant_id"],
+                "scope": row["scope"],
+                "scope_id": row["scope_id"],
+                "content": row["content"],
+                "metadata": json.loads(row["metadata_json"]),
+                "updated_at": row["updated_at"],
+            }
+        )
+
+    @staticmethod
+    def _offload_entry_from_row(row: aiosqlite.Row) -> OffloadEntry:
+        return OffloadEntry.model_validate(
+            {
+                "id": row["id"],
+                "tenant_id": row["tenant_id"],
+                "session_id": row["session_id"],
+                "tool_call_id": row["tool_call_id"],
+                "tool_name": row["tool_name"],
+                "summary": row["summary"],
+                "score": row["score"],
+                "node_id": row["node_id"],
+                "result_ref": row["result_ref"],
+                "metadata": json.loads(row["metadata_json"]),
+                "created_at": row["created_at"],
             }
         )
 

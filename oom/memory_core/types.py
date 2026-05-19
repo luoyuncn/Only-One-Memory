@@ -115,6 +115,63 @@ class MemorySearchResult(BaseModel):
     hits: list[MemorySearchHit]
 
 
+class RecallBeforeRequest(BaseModel):
+    tenant_id: str
+    user_id: str
+    agent_id: str
+    session_id: str
+    session_key: str
+    user_text: str
+    max_results: int = Field(default=5, ge=1, le=20)
+
+
+class RecallBeforeResult(BaseModel):
+    stable_context: str = ""
+    dynamic_context: str
+    memory_hits: list[MemorySearchHit] = Field(default_factory=list)
+    conversation_hits: list[ConversationSearchHit] = Field(default_factory=list)
+
+
+class SceneBlock(BaseModel):
+    id: str
+    tenant_id: str
+    user_id: str
+    filename: str
+    content: str
+    summary: str = ""
+    heat: int = 0
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    updated_at: datetime
+
+
+class SceneListResult(BaseModel):
+    items: list[SceneBlock] = Field(default_factory=list)
+
+
+class ScenePatchRequest(BaseModel):
+    tenant_id: str
+    user_id: str
+    content: str
+    summary: str = ""
+    heat: int = 0
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProfileDocument(BaseModel):
+    scope: str
+    scope_id: str
+    tenant_id: str
+    content: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    updated_at: datetime
+
+
+class ProfilePatchRequest(BaseModel):
+    tenant_id: str
+    content: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class StoreCapabilities(BaseModel):
     fts_search: bool
     vector_search: bool

@@ -60,10 +60,18 @@ class PipelineConfig(BaseModel):
     enable_l1: bool = False
     enable_l2: bool = False
     enable_l3: bool = False
+    enable_warmup: bool = True
+    every_n_conversations: int = 5
+    idle_timeout_seconds: int | None = 600
+    checkpoint_path: str | None = Field(
+        default_factory=lambda: os.getenv("OOM_PIPELINE_CHECKPOINT_PATH")
+        or os.getenv("ONLY_ONE_MEMORY_PIPELINE_CHECKPOINT_PATH")
+    )
 
 
 class OffloadConfig(BaseModel):
     enabled: bool = False
+    data_dir: str = Field(default_factory=lambda: _env("OOM_DATA_DIR", "ONLY_ONE_MEMORY_DATA_DIR", ".oom/offload"))
 
 
 class AppConfig(BaseModel):

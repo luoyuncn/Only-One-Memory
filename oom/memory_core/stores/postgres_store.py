@@ -6,7 +6,16 @@ from typing import Any
 import asyncpg
 
 from oom.memory_core.config import PostgresConfig
-from oom.memory_core.types import ConversationSearchHit, L0Event, MemoryAtom, MemorySearchHit, StoreCapabilities
+from oom.memory_core.offload.types import OffloadEntry
+from oom.memory_core.types import (
+    ConversationSearchHit,
+    L0Event,
+    MemoryAtom,
+    MemorySearchHit,
+    ProfileDocument,
+    SceneBlock,
+    StoreCapabilities,
+)
 
 
 def postgres_schema_comment_statements() -> tuple[str, ...]:
@@ -117,6 +126,58 @@ class PostgresMemoryStore:
             )
             for statement in postgres_schema_comment_statements():
                 await conn.execute(statement)
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS scenes (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    filename TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    heat INTEGER NOT NULL,
+                    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    updated_at TIMESTAMPTZ NOT NULL,
+                    UNIQUE(tenant_id, user_id, filename)
+                )
+                """
+            )
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS profiles (
+                    tenant_id TEXT NOT NULL,
+                    scope TEXT NOT NULL,
+                    scope_id TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    updated_at TIMESTAMPTZ NOT NULL,
+                    PRIMARY KEY(tenant_id, scope, scope_id)
+                )
+                """
+            )
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS offload_entries (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    tool_call_id TEXT NOT NULL,
+                    tool_name TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    score INTEGER NOT NULL,
+                    node_id TEXT NOT NULL,
+                    result_ref TEXT NOT NULL,
+                    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    created_at TIMESTAMPTZ NOT NULL
+                )
+                """
+            )
+            await conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_offload_entries_session
+                ON offload_entries(tenant_id, session_id, created_at)
+                """
+            )
 
     async def close(self) -> None:
         if self._pool is not None:
@@ -323,6 +384,138 @@ class PostgresMemoryStore:
             )
         return [MemorySearchHit(memory=self._memory_from_record(row), score=float(row["score"])) for row in rows]
 
+    async def reindex_all(self) -> dict[str, int | None]:
+        pool = self._require_pool()
+        async with pool.acquire() as conn:
+            l0_count = await conn.fetchval("SELECT count(*) FROM conversation_events")
+            l1_count = await conn.fetchval("SELECT count(*) FROM memories")
+            await conn.execute("REINDEX TABLE conversation_events")
+            await conn.execute("REINDEX TABLE memories")
+        return {"l0": int(l0_count), "l1": int(l1_count), "l2": None, "l3": None}
+
+    async def list_scenes(self, tenant_id: str, user_id: str) -> list[SceneBlock]:
+        pool = self._require_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT * FROM scenes
+                WHERE tenant_id = $1 AND user_id = $2
+                ORDER BY updated_at DESC, filename ASC
+                """,
+                tenant_id,
+                user_id,
+            )
+        return [self._scene_from_record(row) for row in rows]
+
+    async def get_scene(self, scene_id: str, tenant_id: str) -> SceneBlock | None:
+        pool = self._require_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM scenes WHERE id = $1 AND tenant_id = $2", scene_id, tenant_id)
+        return None if row is None else self._scene_from_record(row)
+
+    async def upsert_scene(self, scene: SceneBlock) -> SceneBlock:
+        pool = self._require_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO scenes(id, tenant_id, user_id, filename, content, summary, heat, metadata_json, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
+                ON CONFLICT(id) DO UPDATE SET
+                    filename = excluded.filename,
+                    content = excluded.content,
+                    summary = excluded.summary,
+                    heat = excluded.heat,
+                    metadata_json = excluded.metadata_json,
+                    updated_at = excluded.updated_at
+                """,
+                scene.id,
+                scene.tenant_id,
+                scene.user_id,
+                scene.filename,
+                scene.content,
+                scene.summary,
+                scene.heat,
+                json.dumps(scene.metadata, ensure_ascii=False, sort_keys=True),
+                scene.updated_at,
+            )
+        return scene
+
+    async def get_profile(self, tenant_id: str, scope: str, scope_id: str) -> ProfileDocument | None:
+        pool = self._require_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM profiles WHERE tenant_id = $1 AND scope = $2 AND scope_id = $3",
+                tenant_id,
+                scope,
+                scope_id,
+            )
+        return None if row is None else self._profile_from_record(row)
+
+    async def upsert_profile(self, profile: ProfileDocument) -> ProfileDocument:
+        pool = self._require_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO profiles(tenant_id, scope, scope_id, content, metadata_json, updated_at)
+                VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+                ON CONFLICT(tenant_id, scope, scope_id) DO UPDATE SET
+                    content = excluded.content,
+                    metadata_json = excluded.metadata_json,
+                    updated_at = excluded.updated_at
+                """,
+                profile.tenant_id,
+                profile.scope,
+                profile.scope_id,
+                profile.content,
+                json.dumps(profile.metadata, ensure_ascii=False, sort_keys=True),
+                profile.updated_at,
+            )
+        return profile
+
+    async def upsert_offload_entry(self, entry: OffloadEntry) -> OffloadEntry:
+        pool = self._require_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO offload_entries(
+                    id, tenant_id, session_id, tool_call_id, tool_name, summary, score,
+                    node_id, result_ref, metadata_json, created_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11)
+                ON CONFLICT(id) DO UPDATE SET
+                    summary = excluded.summary,
+                    score = excluded.score,
+                    node_id = excluded.node_id,
+                    result_ref = excluded.result_ref,
+                    metadata_json = excluded.metadata_json
+                """,
+                entry.id,
+                entry.tenant_id,
+                entry.session_id,
+                entry.tool_call_id,
+                entry.tool_name,
+                entry.summary,
+                entry.score,
+                entry.node_id,
+                entry.result_ref,
+                json.dumps(entry.metadata, ensure_ascii=False, sort_keys=True),
+                entry.created_at,
+            )
+        return entry
+
+    async def list_offload_entries(self, tenant_id: str, session_id: str) -> list[OffloadEntry]:
+        pool = self._require_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT * FROM offload_entries
+                WHERE tenant_id = $1 AND session_id = $2
+                ORDER BY created_at ASC, node_id ASC
+                """,
+                tenant_id,
+                session_id,
+            )
+        return [self._offload_entry_from_record(row) for row in rows]
+
     def _require_pool(self) -> asyncpg.Pool:
         if self._pool is None:
             raise RuntimeError("Postgres memory store is not initialized")
@@ -403,5 +596,61 @@ class PostgresMemoryStore:
                 "metadata": metadata,
                 "created_at": record["created_at"],
                 "updated_at": record["updated_at"],
+            }
+        )
+
+    @staticmethod
+    def _scene_from_record(record: asyncpg.Record) -> SceneBlock:
+        metadata = record["metadata_json"]
+        if isinstance(metadata, str):
+            metadata = json.loads(metadata)
+        return SceneBlock.model_validate(
+            {
+                "id": record["id"],
+                "tenant_id": record["tenant_id"],
+                "user_id": record["user_id"],
+                "filename": record["filename"],
+                "content": record["content"],
+                "summary": record["summary"],
+                "heat": record["heat"],
+                "metadata": metadata,
+                "updated_at": record["updated_at"],
+            }
+        )
+
+    @staticmethod
+    def _profile_from_record(record: asyncpg.Record) -> ProfileDocument:
+        metadata = record["metadata_json"]
+        if isinstance(metadata, str):
+            metadata = json.loads(metadata)
+        return ProfileDocument.model_validate(
+            {
+                "tenant_id": record["tenant_id"],
+                "scope": record["scope"],
+                "scope_id": record["scope_id"],
+                "content": record["content"],
+                "metadata": metadata,
+                "updated_at": record["updated_at"],
+            }
+        )
+
+    @staticmethod
+    def _offload_entry_from_record(record: asyncpg.Record) -> OffloadEntry:
+        metadata = record["metadata_json"]
+        if isinstance(metadata, str):
+            metadata = json.loads(metadata)
+        return OffloadEntry.model_validate(
+            {
+                "id": record["id"],
+                "tenant_id": record["tenant_id"],
+                "session_id": record["session_id"],
+                "tool_call_id": record["tool_call_id"],
+                "tool_name": record["tool_name"],
+                "summary": record["summary"],
+                "score": record["score"],
+                "node_id": record["node_id"],
+                "result_ref": record["result_ref"],
+                "metadata": metadata,
+                "created_at": record["created_at"],
             }
         )

@@ -572,6 +572,7 @@ V0.1 的目标不是只做 SQLite 本地 MVP，而是建立双后端基础能力
 | 文档 | 内容 |
 | :--- | :--- |
 | [`docs/superpowers/specs/2026-05-18-only-one-memory-design.md`](docs/superpowers/specs/2026-05-18-only-one-memory-design.md) | OOM 完整设计文档。 |
+| [`docs/attribution/tencentdb-agent-memory.md`](docs/attribution/tencentdb-agent-memory.md) | TencentDB-Agent-Memory prompt 与设计归因说明。 |
 | [`LICENSE`](LICENSE) | MIT License。 |
 
 ---
