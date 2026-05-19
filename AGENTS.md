@@ -26,4 +26,6 @@
 - 2026-05-19：修正 pipeline state 导出格式，内部组合键不再泄露到租户导出，保持 import/export 使用原始 session_key。
 - 2026-05-19：补强 offload entry 创建校验，不允许写入不存在或跨 scope 的 result_ref。
 - 2026-05-19：新增 scripts/test_postgres.ps1，读取 .env 后初始化 Postgres schema 并运行 Postgres 专项测试入口。
+- 2026-05-19：AppConfig 新增当前工作目录 .env 自动加载，真实环境变量优先；普通 pytest 未显式设置后端时继续默认 SQLite 隔离。
 - 2026-05-19：为当前生产代码补充中文模块/关键流程注释，新增 docs/code-reading-guide.md 代码观看指南，并在 README 文档入口中挂载。
+- 2026-05-19：补充配置测试覆盖当前目录 `.env` 自动读取与真实环境变量覆盖 `.env` 的优先级。

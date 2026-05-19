@@ -3,14 +3,49 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 
+_ENV_FILE_CACHE: dict[Path, dict[str, str]] = {}
+
+
+def _env_file_values() -> dict[str, str]:
+    """读取当前目录 .env，但不写入 os.environ，避免污染测试和宿主进程。"""
+    env_path = (Path.cwd() / ".env").resolve()
+    if env_path in _ENV_FILE_CACHE:
+        return _ENV_FILE_CACHE[env_path]
+    if not env_path.exists():
+        _ENV_FILE_CACHE[env_path] = {}
+        return {}
+
+    values: dict[str, str] = {}
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("export "):
+            stripped = stripped[7:].strip()
+        key, separator, value = stripped.partition("=")
+        if not separator:
+            continue
+        key = key.strip()
+        if not key:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        values[key] = value
+    _ENV_FILE_CACHE[env_path] = values
+    return values
+
+
 def _env(name: str, legacy_name: str, default: str) -> str:
-    """读取新旧环境变量名，兼容早期 ONLY_ONE_MEMORY_* 配置。"""
-    return os.getenv(name) or os.getenv(legacy_name) or default
+    """读取新旧环境变量名，并把当前目录 .env 作为低优先级 fallback。"""
+    env_file = _env_file_values()
+    return os.getenv(name) or os.getenv(legacy_name) or env_file.get(name) or env_file.get(legacy_name) or default
 
 
 def _sqlite_vector_backend() -> Literal["sqlite_vec", "blob_bruteforce"]:
@@ -71,8 +106,8 @@ class PipelineConfig(BaseModel):
     every_n_conversations: int = 5
     idle_timeout_seconds: int | None = 600
     checkpoint_path: str | None = Field(
-        default_factory=lambda: os.getenv("OOM_PIPELINE_CHECKPOINT_PATH")
-        or os.getenv("ONLY_ONE_MEMORY_PIPELINE_CHECKPOINT_PATH")
+        default_factory=lambda: _env("OOM_PIPELINE_CHECKPOINT_PATH", "ONLY_ONE_MEMORY_PIPELINE_CHECKPOINT_PATH", "")
+        or None
     )
 
 
@@ -82,9 +117,7 @@ class OffloadConfig(BaseModel):
 
 
 class SecurityConfig(BaseModel):
-    api_key: str | None = Field(
-        default_factory=lambda: os.getenv("OOM_API_KEY") or os.getenv("ONLY_ONE_MEMORY_API_KEY")
-    )
+    api_key: str | None = Field(default_factory=lambda: _env("OOM_API_KEY", "ONLY_ONE_MEMORY_API_KEY", "") or None)
 
 
 class AppConfig(BaseModel):
