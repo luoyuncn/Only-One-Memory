@@ -390,7 +390,7 @@ L0:
   session_key + recorded_at
   tenant_id + user_id + event_ts
   FTS index(content/searchable_content)
-  optional vector index
+  vector index when embedding is enabled
 
 L1:
   tenant_id + user_id + type
@@ -411,19 +411,21 @@ Pipeline:
 SQLite：
 
 - FTS5 用于关键词检索。
-- 初期 embedding 存为 BLOB 或 JSON。
-- 默认使用 Python brute-force cosine 作为向量检索兜底。
-- 后续可选 sqlite-vec。
+- V0.1 起支持 sqlite-vec 作为 SQLite 向量检索后端。
+- embedding 可同时保留 BLOB/JSON 备份字段，便于重建 sqlite-vec 索引和调试。
+- Python brute-force cosine 只作为 sqlite-vec 不可用时的兼容兜底，不作为一期主路径。
 - 使用 WAL mode。
 - 优先使用 in-process worker。
 
 Postgres：
 
+- V0.1 起支持 PostgresStore，不延后到生产阶段。
 - JSONB metadata。
 - tsvector + GIN。
 - pgvector。
-- DB-backed workers 使用 `SELECT ... FOR UPDATE SKIP LOCKED`。
-- 使用 advisory locks 或 job-table locks 保证分布式安全。
+- V0.1 覆盖基础 schema migration、L0 写入、FTS 和 pgvector 检索；V0.2 在同一后端能力上补齐 L1 memories。
+- DB-backed workers 后续使用 `SELECT ... FOR UPDATE SKIP LOCKED`。
+- 分布式安全后续使用 advisory locks 或 job-table locks。
 
 ## 9. REST API 与 SDK
 
@@ -909,7 +911,7 @@ store:
   backend: sqlite
   sqlite:
     path: ./data/memory.db
-    vector_backend: blob_bruteforce
+    vector_backend: sqlite_vec  # sqlite_vec | blob_bruteforce
   postgres:
     dsn: postgresql+asyncpg://user:pass@localhost:5432/memory
     vector_dim: 1536
@@ -970,7 +972,7 @@ offload:
 
 - config validation
 - Pydantic schemas
-- store init/upsert/query/search
+- store init/upsert/query/search for SQLite/sqlite-vec and Postgres/pgvector
 - RRF and scoring
 - recall timeout fallback
 - capture idempotency
@@ -1007,6 +1009,7 @@ API 测试：
 
 集成测试：
 
+- backend matrix: SQLite + sqlite-vec, Postgres + pgvector
 - capture turns -> run L1 -> search -> run L2 -> run L3 -> recall
 - embedding disabled -> FTS fallback
 - FTS unavailable -> vector fallback
@@ -1022,14 +1025,16 @@ API 测试：
 
 ## 17. 实现计划
 
-### V0.1 REST + MemoryCore + SQLite L0
+### V0.1 REST + MemoryCore + SQLite/Postgres L0
 
 - FastAPI skeleton
 - `MemoryCore` lifecycle
 - config
-- SQLite basic schema
+- SQLite basic schema + FTS5 + sqlite-vec
+- Postgres basic schema + JSONB + tsvector/GIN + pgvector
+- store backend selection and migration smoke tests for both backends
 - `/v1/capture/turn`
-- `/v1/conversations/search` via FTS
+- `/v1/conversations/search` via FTS/vector according to backend capabilities
 - `/v1/health`
 - idempotency
 - tests
@@ -1038,7 +1043,7 @@ API 测试：
 
 - prompt migration：L1 extraction and dedup
 - L1 extractor
-- MemoryAtom store
+- MemoryAtom store for both SQLite/sqlite-vec and Postgres/pgvector
 - embedding provider
 - RRF
 - `/v1/recall/before`
@@ -1046,12 +1051,12 @@ API 测试：
 - pipeline L1 threshold and idle
 - tests
 
-### V0.3 Pipeline 完整化 + Postgres
+### V0.3 Pipeline 完整化 + Worker 化
 
 - warmup, L2, L3 queues
 - checkpoint restore
-- PostgresStore
-- pgvector + tsvector
+- Postgres worker locking with `SELECT ... FOR UPDATE SKIP LOCKED`
+- advisory locks or job-table locks
 - admin reindex
 - optional separate worker
 
@@ -1082,7 +1087,7 @@ API 测试：
 
 ## 18. 成功标准
 
-V0.1 成功标准：Python Agent 可以通过 REST 记录 turns，并在重启后搜索原始对话。
+V0.1 成功标准：Python Agent 可以通过 REST 记录 turns，并在 SQLite 和 Postgres 两种后端下完成重启后的原始对话搜索；SQLite 路径支持 FTS5 + sqlite-vec，Postgres 路径支持 tsvector/GIN + pgvector。
 
 V0.2 成功标准：已捕获的 turns 可以生成 L1 memories，并且下一次 recall 调用能返回 stable 和 dynamic context。
 
