@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 
 MessageRole = Literal["system", "user", "assistant", "tool"]
+MemoryType = Literal["persona", "episodic", "instruction"]
 
 
 class ConversationMessage(BaseModel):
@@ -73,6 +74,45 @@ class ConversationSearchHit(BaseModel):
 class ConversationSearchResult(BaseModel):
     total: int
     hits: list[ConversationSearchHit]
+
+
+class MemoryAtom(BaseModel):
+    id: str
+    tenant_id: str
+    user_id: str
+    agent_id: str
+    session_id: str
+    session_key: str
+    content: str
+    type: MemoryType
+    priority: int = Field(ge=0, le=100)
+    confidence: float = Field(ge=0.0, le=1.0)
+    scene_name: str | None = None
+    source_event_ids: list[str] = Field(default_factory=list)
+    timestamps: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
+
+
+class MemorySearchHit(BaseModel):
+    memory: MemoryAtom
+    score: float
+
+
+class MemorySearchRequest(BaseModel):
+    tenant_id: str
+    user_id: str | None = None
+    agent_id: str | None = None
+    session_id: str | None = None
+    session_key: str | None = None
+    query: str
+    limit: int = Field(default=10, ge=1, le=50)
+
+
+class MemorySearchResult(BaseModel):
+    total: int
+    hits: list[MemorySearchHit]
 
 
 class StoreCapabilities(BaseModel):

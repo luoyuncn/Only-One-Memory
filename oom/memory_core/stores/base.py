@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from oom.memory_core.types import ConversationSearchHit, L0Event, StoreCapabilities
+from oom.memory_core.types import ConversationSearchHit, L0Event, MemoryAtom, MemorySearchHit, StoreCapabilities
 
 
 class MemoryStore(Protocol):
@@ -23,3 +23,13 @@ class MemoryStore(Protocol):
     ) -> list[ConversationSearchHit]: ...
 
     async def query_l0_for_l1(self, filters: dict[str, Any] | None = None, limit: int = 100) -> list[L0Event]: ...
+
+    async def upsert_l1(self, memory: MemoryAtom, embedding: list[float] | None = None) -> bool: ...
+
+    async def search_l1_fts(
+        self, query: str, limit: int, filters: dict[str, Any] | None = None
+    ) -> list[MemorySearchHit]: ...
+
+    async def search_l1_vector(
+        self, embedding: list[float], limit: int, filters: dict[str, Any] | None = None
+    ) -> list[MemorySearchHit]: ...

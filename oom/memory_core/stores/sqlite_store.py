@@ -7,7 +7,7 @@ from typing import Any
 import aiosqlite
 
 from oom.memory_core.config import SqliteConfig
-from oom.memory_core.types import ConversationSearchHit, L0Event, StoreCapabilities
+from oom.memory_core.types import ConversationSearchHit, L0Event, MemoryAtom, MemorySearchHit, StoreCapabilities
 
 
 class SqliteMemoryStore:
@@ -48,6 +48,44 @@ class SqliteMemoryStore:
 
             CREATE INDEX IF NOT EXISTS idx_conversation_events_scope
             ON conversation_events(tenant_id, user_id, agent_id, session_id);
+
+            CREATE TABLE IF NOT EXISTS memories (
+                id TEXT PRIMARY KEY,
+                tenant_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                agent_id TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                session_key TEXT NOT NULL,
+                content TEXT NOT NULL,
+                type TEXT NOT NULL,
+                priority INTEGER NOT NULL,
+                confidence REAL NOT NULL,
+                scene_name TEXT,
+                source_event_ids_json TEXT NOT NULL DEFAULT '[]',
+                timestamps_json TEXT NOT NULL DEFAULT '[]',
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts
+            USING fts5(memory_id UNINDEXED, content);
+
+            CREATE TABLE IF NOT EXISTS l1_embeddings (
+                memory_id TEXT PRIMARY KEY,
+                embedding_json TEXT NOT NULL,
+                FOREIGN KEY(memory_id) REFERENCES memories(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS memory_sources (
+                memory_id TEXT NOT NULL,
+                event_id TEXT NOT NULL,
+                PRIMARY KEY(memory_id, event_id),
+                FOREIGN KEY(memory_id) REFERENCES memories(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_memories_scope
+            ON memories(tenant_id, user_id, agent_id, session_id);
             """
         )
         await self._db.commit()
@@ -181,6 +219,118 @@ class SqliteMemoryStore:
         rows = await cursor.fetchall()
         return [self._event_from_row(row) for row in rows]
 
+    async def upsert_l1(self, memory: MemoryAtom, embedding: list[float] | None = None) -> bool:
+        db = self._require_db()
+        await db.execute(
+            """
+            INSERT INTO memories (
+                id, tenant_id, user_id, agent_id, session_id, session_key, content, type,
+                priority, confidence, scene_name, source_event_ids_json, timestamps_json,
+                metadata_json, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                tenant_id = excluded.tenant_id,
+                user_id = excluded.user_id,
+                agent_id = excluded.agent_id,
+                session_id = excluded.session_id,
+                session_key = excluded.session_key,
+                content = excluded.content,
+                type = excluded.type,
+                priority = excluded.priority,
+                confidence = excluded.confidence,
+                scene_name = excluded.scene_name,
+                source_event_ids_json = excluded.source_event_ids_json,
+                timestamps_json = excluded.timestamps_json,
+                metadata_json = excluded.metadata_json,
+                updated_at = excluded.updated_at
+            """,
+            (
+                memory.id,
+                memory.tenant_id,
+                memory.user_id,
+                memory.agent_id,
+                memory.session_id,
+                memory.session_key,
+                memory.content,
+                memory.type,
+                memory.priority,
+                memory.confidence,
+                memory.scene_name,
+                json.dumps(memory.source_event_ids, ensure_ascii=False),
+                json.dumps(memory.timestamps, ensure_ascii=False),
+                json.dumps(memory.metadata, ensure_ascii=False, sort_keys=True),
+                memory.created_at.isoformat(),
+                memory.updated_at.isoformat(),
+            ),
+        )
+        await db.execute("DELETE FROM memories_fts WHERE memory_id = ?", (memory.id,))
+        await db.execute("INSERT INTO memories_fts(memory_id, content) VALUES (?, ?)", (memory.id, memory.content))
+        await db.execute("DELETE FROM memory_sources WHERE memory_id = ?", (memory.id,))
+        await db.executemany(
+            "INSERT INTO memory_sources(memory_id, event_id) VALUES (?, ?)",
+            [(memory.id, event_id) for event_id in memory.source_event_ids],
+        )
+        if embedding is not None:
+            await db.execute(
+                """
+                INSERT INTO l1_embeddings(memory_id, embedding_json)
+                VALUES (?, ?)
+                ON CONFLICT(memory_id) DO UPDATE SET embedding_json = excluded.embedding_json
+                """,
+                (memory.id, json.dumps(embedding)),
+            )
+        await db.commit()
+        return True
+
+    async def search_l1_fts(
+        self, query: str, limit: int, filters: dict[str, Any] | None = None
+    ) -> list[MemorySearchHit]:
+        db = self._require_db()
+        where_sql, params = self._filters_sql(filters, alias="m")
+        try:
+            cursor = await db.execute(
+                f"""
+                SELECT m.*, bm25(memories_fts) AS rank
+                FROM memories_fts
+                JOIN memories m ON m.id = memories_fts.memory_id
+                WHERE memories_fts MATCH ?{where_sql}
+                ORDER BY rank
+                LIMIT ?
+                """,
+                [query, *params, limit],
+            )
+            rows = await cursor.fetchall()
+        except aiosqlite.OperationalError:
+            rows = []
+
+        if not rows:
+            rows = await self._search_l1_like(query, limit, filters)
+            return [MemorySearchHit(memory=self._memory_from_row(row), score=1.0) for row in rows]
+
+        return [MemorySearchHit(memory=self._memory_from_row(row), score=float(-row["rank"])) for row in rows]
+
+    async def search_l1_vector(
+        self, embedding: list[float], limit: int, filters: dict[str, Any] | None = None
+    ) -> list[MemorySearchHit]:
+        db = self._require_db()
+        where_sql, params = self._filters_sql(filters, alias="m")
+        cursor = await db.execute(
+            f"""
+            SELECT m.*, le.embedding_json
+            FROM l1_embeddings le
+            JOIN memories m ON m.id = le.memory_id
+            WHERE 1 = 1{where_sql}
+            """,
+            params,
+        )
+        rows = await cursor.fetchall()
+        scored = []
+        for row in rows:
+            stored_embedding = json.loads(row["embedding_json"])
+            scored.append((self._cosine_similarity(embedding, stored_embedding), row))
+        scored.sort(key=lambda item: item[0], reverse=True)
+        return [MemorySearchHit(memory=self._memory_from_row(row), score=float(score)) for score, row in scored[:limit]]
+
     async def _try_enable_sqlite_vec(self) -> None:
         if self._db is None:
             return
@@ -200,7 +350,7 @@ class SqliteMemoryStore:
         return self._db
 
     @staticmethod
-    def _filters_sql(filters: dict[str, Any] | None) -> tuple[str, list[Any]]:
+    def _filters_sql(filters: dict[str, Any] | None, alias: str = "e") -> tuple[str, list[Any]]:
         if not filters:
             return "", []
         allowed = {"tenant_id", "user_id", "agent_id", "session_id", "session_key", "role"}
@@ -208,7 +358,7 @@ class SqliteMemoryStore:
         params: list[Any] = []
         for key, value in filters.items():
             if key in allowed and value is not None:
-                clauses.append(f" AND e.{key} = ?")
+                clauses.append(f" AND {alias}.{key} = ?")
                 params.append(value)
         return "".join(clauses), params
 
@@ -232,6 +382,26 @@ class SqliteMemoryStore:
         )
         return list(await cursor.fetchall())
 
+    async def _search_l1_like(
+        self, query: str, limit: int, filters: dict[str, Any] | None = None
+    ) -> list[aiosqlite.Row]:
+        db = self._require_db()
+        where_sql, params = self._filters_sql(filters, alias="m")
+        tokens = [token for token in query.split() if token]
+        like_sql = "".join(" AND m.content LIKE ?" for _ in tokens)
+        like_params = [f"%{token}%" for token in tokens]
+        cursor = await db.execute(
+            f"""
+            SELECT m.*, 0.0 AS rank
+            FROM memories m
+            WHERE 1 = 1{where_sql}{like_sql}
+            ORDER BY m.updated_at DESC
+            LIMIT ?
+            """,
+            [*params, *like_params, limit],
+        )
+        return list(await cursor.fetchall())
+
     @staticmethod
     def _event_from_row(row: aiosqlite.Row) -> L0Event:
         return L0Event.model_validate(
@@ -247,6 +417,29 @@ class SqliteMemoryStore:
                 "event_ts": row["event_ts"],
                 "recorded_at": row["recorded_at"],
                 "metadata": json.loads(row["metadata_json"]),
+            }
+        )
+
+    @staticmethod
+    def _memory_from_row(row: aiosqlite.Row) -> MemoryAtom:
+        return MemoryAtom.model_validate(
+            {
+                "id": row["id"],
+                "tenant_id": row["tenant_id"],
+                "user_id": row["user_id"],
+                "agent_id": row["agent_id"],
+                "session_id": row["session_id"],
+                "session_key": row["session_key"],
+                "content": row["content"],
+                "type": row["type"],
+                "priority": row["priority"],
+                "confidence": row["confidence"],
+                "scene_name": row["scene_name"],
+                "source_event_ids": json.loads(row["source_event_ids_json"]),
+                "timestamps": json.loads(row["timestamps_json"]),
+                "metadata": json.loads(row["metadata_json"]),
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
             }
         )
 

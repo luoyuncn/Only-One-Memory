@@ -284,6 +284,116 @@ curl -X POST http://localhost:8000/v1/capture/turn \
 
 ---
 
+## V0.1 Postgres 初始化与 FAQ
+
+### 最小环境变量
+
+远程 Postgres 默认目标数据库名为 `oom`。复制 `.env.example` 到 `.env`，然后替换账号、密码和主机：
+
+```env
+OOM_STORE_BACKEND=postgres
+OOM_POSTGRES_DSN=postgresql+asyncpg://user:password@host:5432/oom
+```
+
+如果 `OOM_POSTGRES_DSN` 中的用户不能创建数据库，可以额外配置管理员连接串：
+
+```env
+OOM_POSTGRES_ADMIN_DSN=postgresql+asyncpg://admin:password@host:5432/postgres
+```
+
+### 初始化数据库与 V0.1 schema
+
+```bash
+uv sync
+uv run python scripts/init_postgres.py
+```
+
+脚本会读取 `.env`，连接同一远程实例的维护库 `postgres`，在缺失时创建 `oom` 数据库，然后连接 `oom` 业务库执行 `CREATE EXTENSION IF NOT EXISTS vector`，并初始化 V0.1 表结构与索引。
+
+### 远程 Postgres 部署检查清单
+
+1. **网络可达**：远程数据库安全组、防火墙、白名单允许当前机器访问数据库端口，通常是 `5432`。
+2. **连接串正确**：`OOM_POSTGRES_DSN` 指向业务数据库，默认库名为 `oom`，不是默认维护库 `postgres`。
+3. **数据库存在**：脚本可以创建 `oom`；如果业务账号没有建库权限，使用 `OOM_POSTGRES_ADMIN_DSN` 或让管理员提前创建。
+4. **pgvector 已安装**：服务器或云数据库实例必须支持 `pgvector`，否则 `CREATE EXTENSION vector` 无法执行。
+5. **业务库已启用 vector**：扩展是 database-scoped；即使默认数据库已经启用，也仍需在 `oom` 业务库中启用。
+6. **账号权限足够**：创建 `vector` 扩展可能要求 superuser、云厂商的高权限账号，或由控制台/管理员代为启用。
+7. **初始化脚本完成**：脚本需要成功创建表、GIN 索引和向量字段。
+8. **V0.1 功能验证通过**：至少跑通 Postgres L0 存储测试和捕获搜索 API 测试。
+
+可用 SQL 预检：
+
+```sql
+-- 在 oom 业务库执行：确认服务器是否提供 pgvector
+SELECT * FROM pg_available_extensions WHERE name = 'vector';
+
+-- 在 oom 业务库执行：确认当前业务库是否已经启用 vector
+SELECT * FROM pg_extension WHERE extname = 'vector';
+
+-- 在 oom 业务库执行：如果有权限，手动启用
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+### 主测 V0.1 功能
+
+```bash
+uv run pytest tests/integration/test_postgres_l0_store.py -q
+uv run pytest tests/integration/test_capture_and_search_api.py -q
+uv run pytest -q
+```
+
+### FAQ
+
+**Q: `ModuleNotFoundError: No module named 'oom'` 是什么？**
+
+A: 直接执行脚本时如果项目根目录不在 Python import path，会找不到 `oom` 包。当前脚本已在入口处自动加入项目根目录；推荐使用：
+
+```bash
+uv run python scripts/init_postgres.py
+```
+
+**Q: `InsufficientPrivilegeError: permission denied to create database` 是什么？**
+
+A: 连接已经成功，但 `OOM_POSTGRES_DSN` 里的用户没有 `CREATE DATABASE` 权限。处理方式三选一：
+
+- 给该用户授予 `CREATEDB`。
+- 让管理员先手动创建 `oom` 数据库。
+- 在 `.env` 中配置 `OOM_POSTGRES_ADMIN_DSN`，用有权限的账号负责建库。
+
+**Q: `extension "vector" is not available` 是什么？**
+
+A: 脚本会在 `OOM_POSTGRES_DSN` 指向的业务数据库中执行 `CREATE EXTENSION IF NOT EXISTS vector`。如果仍然看到这个错误，说明远程 PostgreSQL 服务器没有安装 `pgvector` 扩展。`CREATE EXTENSION vector` 只能启用服务器已安装的扩展，不能安装系统包。
+
+可先在目标库检查：
+
+```sql
+SELECT * FROM pg_available_extensions WHERE name = 'vector';
+```
+
+如果没有结果：
+
+- 自建 PostgreSQL：需要在服务器上安装与 PostgreSQL 版本匹配的 pgvector 包。
+- 云数据库：需要确认服务商和当前套餐是否支持 pgvector，并按控制台或管理员流程开启。
+
+V0.1 的 Postgres 后端当前依赖 `pgvector`；如果远程库不支持 pgvector，可以先用 SQLite 后端测试，或后续实现 Postgres 无向量降级模式。
+
+**Q: `permission denied to create extension "vector"` / `Must be superuser to create this extension` 是什么？**
+
+A: 这说明远程 PostgreSQL 已经识别到 `vector` 扩展，但当前连接到 `oom` 业务库的用户没有权限启用它。注意：扩展需要在每个业务数据库中单独启用；“默认数据库已经启用”不代表 `oom` 已启用。
+
+处理方式：
+
+- 让 DBA 或云数据库管理员连接 `oom` 业务库执行 `CREATE EXTENSION IF NOT EXISTS vector;`。
+- 如果云厂商提供扩展管理控制台，在控制台为 `oom` 数据库启用 pgvector/vector。
+- 换用具有启用扩展权限的 DSN 运行初始化脚本。
+- 启用后再用业务账号运行 `uv run python scripts/init_postgres.py`，脚本会继续初始化 V0.1 schema。
+
+**Q: 数据库已经创建了，还需要跑初始化脚本吗？**
+
+A: 需要。脚本会跳过已存在的数据库，但仍会初始化 V0.1 schema，包括 `conversation_events`、FTS 索引和向量字段。
+
+---
+
 ## 🧩 计划 API
 
 ### Agent 主流程
