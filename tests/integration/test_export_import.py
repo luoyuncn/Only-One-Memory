@@ -94,7 +94,7 @@ async def test_admin_import_restores_offload_refs_and_pipeline_state(tmp_path, m
         if core is None:
             await client.get("/v1/admin/pipeline/status")
             core = source.state.memory_core
-        core.pipeline.load_states({"s1": PipelineSessionState.new("s1", enable_warmup=True)})
+        core.pipeline.load_states({"s1": PipelineSessionState.new("s1", enable_warmup=True, tenant_id="default")})
         exported = await client.post("/v1/admin/export", json={"tenant_id": "default"})
 
     await source.state.memory_core.close()
@@ -117,3 +117,43 @@ async def test_admin_import_restores_offload_refs_and_pipeline_state(tmp_path, m
     assert imported.json()["imported"]["pipeline_state"] == 1
     assert restored.json()["raw_content"] == "restorable raw"
     assert status.json()["l1"]["sessions"] == 1
+
+
+async def test_admin_export_import_pipeline_state_is_tenant_scoped(tmp_path, monkeypatch):
+    monkeypatch.delenv("OOM_API_KEY", raising=False)
+    monkeypatch.delenv("ONLY_ONE_MEMORY_API_KEY", raising=False)
+    monkeypatch.setenv("OOM_SQLITE_PATH", str(tmp_path / "memory.db"))
+    app = create_app()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post(
+            "/v1/capture/turn",
+            json={
+                "tenant_id": "tenant-a",
+                "user_id": "u1",
+                "agent_id": "a1",
+                "session_id": "s1",
+                "session_key": "tenant-a:a1:u1:s1",
+                "idempotency_key": "tenant-a-turn",
+                "messages": [{"role": "user", "content": "tenant-a", "timestamp": "2026-05-19T00:00:00Z"}],
+            },
+        )
+        await client.post(
+            "/v1/capture/turn",
+            json={
+                "tenant_id": "tenant-b",
+                "user_id": "u2",
+                "agent_id": "a2",
+                "session_id": "s2",
+                "session_key": "tenant-b:a2:u2:s2",
+                "idempotency_key": "tenant-b-turn",
+                "messages": [{"role": "user", "content": "tenant-b", "timestamp": "2026-05-19T00:00:00Z"}],
+            },
+        )
+        exported = await client.post("/v1/admin/export", json={"tenant_id": "tenant-a"})
+        imported = await client.post("/v1/admin/import", json=exported.json())
+
+    await app.state.memory_core.close()
+
+    exported_state = exported.json()["records"]["pipeline_state"]
+    assert set(exported_state) == {"tenant-a:a1:u1:s1"}
+    assert imported.json()["imported"]["pipeline_state"] == 1

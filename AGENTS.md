@@ -20,3 +20,5 @@
 - 2026-05-19：V0.6 新增 Dockerfile、Postgres+pgvector compose、运维手册，并将 uvicorn 加入运行依赖以支持容器启动。
 - 2026-05-19：规划总验收阶段补充 pyright 类型收口，修正 SceneExtractor 的 updated_at 类型转换、SQLite 计数空行收窄与测试替身类型标注。
 - 2026-05-19：根据 code review 修复 Offload 跨租户 restore/get 泄露风险，补强 offload entries 的 user/agent 关联、删除事务、export/import refs 与 pipeline state 恢复，并新增 Alembic baseline migration。
+- 2026-05-19：根据复审继续修正 Alembic pipeline_jobs baseline、pipeline state 租户范围导出与 merge 导入，以及 offload entry 创建时的 ref scope 校验。
+- 2026-05-19：为集成测试增加自动关闭 create_app 产生的 MemoryCore，避免 aiosqlite 后台线程在测试结束后残留。

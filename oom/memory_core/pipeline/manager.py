@@ -35,10 +35,12 @@ class PipelineManager:
         self._l3_running = False
         self._l3_pending = False
 
-    async def notify_conversation(self, session_key: str) -> None:
+    async def notify_conversation(self, session_key: str, tenant_id: str = "default") -> None:
         state = self._states.get(session_key)
         if state is None:
-            state = PipelineSessionState.new(session_key, enable_warmup=self.enable_warmup)
+            state = PipelineSessionState.new(session_key, enable_warmup=self.enable_warmup, tenant_id=tenant_id)
+        else:
+            state.tenant_id = tenant_id
         state.conversation_count += 1
         state.last_activity_at = datetime.now(timezone.utc)
         self._states[session_key] = state
@@ -68,6 +70,12 @@ class PipelineManager:
 
     def dump_states(self) -> dict[str, PipelineSessionState]:
         return dict(self._states)
+
+    def dump_states_for_tenant(self, tenant_id: str) -> dict[str, PipelineSessionState]:
+        return {key: state for key, state in self._states.items() if state.tenant_id == tenant_id}
+
+    def merge_states(self, states: dict[str, PipelineSessionState]) -> None:
+        self._states.update(states)
 
     def status(self) -> dict[str, object]:
         return {

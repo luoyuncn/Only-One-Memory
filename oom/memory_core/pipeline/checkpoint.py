@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 class PipelineSessionState(BaseModel):
     session_key: str
+    tenant_id: str = "default"
     conversation_count: int = Field(default=0, ge=0)
     warmup_threshold: int = Field(default=0, ge=0)
     last_l1_cursor: str | None = None
@@ -20,9 +21,10 @@ class PipelineSessionState(BaseModel):
     l1_retry_count: int = Field(default=0, ge=0)
 
     @classmethod
-    def new(cls, session_key: str, enable_warmup: bool) -> PipelineSessionState:
+    def new(cls, session_key: str, enable_warmup: bool, tenant_id: str = "default") -> PipelineSessionState:
         return cls(
             session_key=session_key,
+            tenant_id=tenant_id,
             warmup_threshold=1 if enable_warmup else 0,
             last_activity_at=datetime.now(timezone.utc),
         )

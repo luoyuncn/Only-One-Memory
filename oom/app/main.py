@@ -1,3 +1,5 @@
+from weakref import WeakSet
+
 from fastapi import FastAPI, Response
 
 from oom.app.api import admin, capture, health, offload, profiles, recall, scenes, search
@@ -5,9 +7,13 @@ from oom.memory_core.config import AppConfig
 from oom.memory_core.observability.metrics import render_prometheus_text
 
 
+CREATED_APPS: WeakSet[FastAPI] = WeakSet()
+
+
 def create_app() -> FastAPI:
     config = AppConfig()
     app = FastAPI(title="Only One Memory")
+    CREATED_APPS.add(app)
     app.state.config = config
     app.include_router(health.router, prefix="/v1")
     app.include_router(capture.router, prefix="/v1")

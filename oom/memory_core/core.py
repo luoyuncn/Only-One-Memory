@@ -94,7 +94,7 @@ class MemoryCore:
             idempotency_key=request.idempotency_key,
         )
         self._idempotency.put(request.idempotency_key, digest, result)
-        await self.pipeline.notify_conversation(request.session_key)
+        await self.pipeline.notify_conversation(request.session_key, tenant_id=request.tenant_id)
         increment("oom_capture_total")
         return result
 

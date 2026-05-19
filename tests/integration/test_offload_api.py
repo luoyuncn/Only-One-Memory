@@ -5,6 +5,7 @@ from oom.app.main import create_app
 
 async def test_offload_ref_restore_api(tmp_path, monkeypatch):
     monkeypatch.setenv("OOM_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("OOM_SQLITE_PATH", str(tmp_path / "memory.db"))
     app = create_app()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         created = await client.post(
@@ -38,6 +39,7 @@ async def test_offload_ref_restore_api(tmp_path, monkeypatch):
 
 async def test_offload_restore_rejects_cross_tenant_ref(tmp_path, monkeypatch):
     monkeypatch.setenv("OOM_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("OOM_SQLITE_PATH", str(tmp_path / "memory.db"))
     app = create_app()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         created = await client.post(

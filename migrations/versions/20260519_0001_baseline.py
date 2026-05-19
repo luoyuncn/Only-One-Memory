@@ -133,17 +133,18 @@ def upgrade() -> None:
         """
         CREATE TABLE IF NOT EXISTS pipeline_jobs (
             id TEXT PRIMARY KEY,
+            status TEXT NOT NULL,
             stage TEXT NOT NULL,
             session_key TEXT NOT NULL,
-            payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
-            status TEXT NOT NULL,
+            run_after TIMESTAMPTZ NOT NULL,
             locked_by TEXT,
             locked_at TIMESTAMPTZ,
+            payload JSONB NOT NULL DEFAULT '{}'::jsonb,
             created_at TIMESTAMPTZ NOT NULL
         )
         """
     )
-    op.execute("CREATE INDEX IF NOT EXISTS idx_pipeline_jobs_status ON pipeline_jobs(status, created_at)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_pipeline_jobs_claim ON pipeline_jobs(status, run_after, stage)")
 
 
 def downgrade() -> None:

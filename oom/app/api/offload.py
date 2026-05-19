@@ -48,10 +48,10 @@ async def get_ref(ref_id: str, tenant_id: str, session_id: str, request: Request
 async def restore(
     payload: RestoreOffloadRequest,
     request: Request,
-    core: MemoryCore = Depends(get_memory_core),
 ) -> RestoreOffloadResult:
     result_ref = payload.result_ref
     if result_ref is None and payload.node_id is not None:
+        core = await get_memory_core(request)
         entries = await core.list_offload_entries(payload.tenant_id, payload.session_id)
         match = next((entry for entry in entries if entry.node_id == payload.node_id), None)
         if match is not None:
@@ -77,6 +77,8 @@ async def create_entry(
     core: MemoryCore = Depends(get_memory_core),
 ) -> OffloadEntry:
     ref = _ref_store(request).get_ref(payload.result_ref)
+    if ref is not None and (ref.tenant_id != payload.tenant_id or ref.session_id != payload.session_id):
+        raise HTTPException(status_code=404, detail="offload ref not found")
     user_id = payload.user_id or (ref.user_id if ref is not None else "")
     agent_id = payload.agent_id or (ref.agent_id if ref is not None else "")
     entry = build_offload_entry(
