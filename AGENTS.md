@@ -30,3 +30,5 @@
 - 2026-05-19：为当前生产代码补充中文模块/关键流程注释，新增 docs/code-reading-guide.md 代码观看指南，并在 README 文档入口中挂载。
 - 2026-05-19：补充配置测试覆盖当前目录 `.env` 自动读取与真实环境变量覆盖 `.env` 的优先级。
 - 2026-05-19：调整测试隔离策略，配置 `OOM_STORE_BACKEND=postgres` 时应用测试保持 Postgres 路径并清空 Postgres 表，不再由测试夹具强制回 SQLite。
+- 2026-05-20：新增 Postman 本地调试集合，覆盖 health、capture/search/recall、scene/profile、offload 与 admin API。
+- 2026-05-20：新增 5 个真实时间线 HTTP 场景脚本，用于向当前服务批量写入连续 user/assistant turn，并覆盖规划、偏好纠正、跨 session 恢复、offload 与多租户隔离。

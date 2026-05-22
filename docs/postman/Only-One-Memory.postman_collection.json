@@ -1,0 +1,720 @@
+{
+  "info": {
+    "_postman_id": "7d450e0b-f04d-4e8f-9c4a-oom-local-debug",
+    "name": "Only-One-Memory Local Debug",
+    "description": "Only-One-Memory FastAPI 本地调试集合。先运行 Health，再按 Capture -> Search/Recall -> Scene/Profile -> Offload/Admin 顺序调试。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8710",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tenantId",
+      "value": "default",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "u1",
+      "type": "string"
+    },
+    {
+      "key": "agentId",
+      "value": "a1",
+      "type": "string"
+    },
+    {
+      "key": "sessionId",
+      "value": "s1",
+      "type": "string"
+    },
+    {
+      "key": "sessionKey",
+      "value": "agent:u1:s1",
+      "type": "string"
+    },
+    {
+      "key": "sceneId",
+      "value": "agent-memory",
+      "type": "string"
+    },
+    {
+      "key": "profileScope",
+      "value": "user",
+      "type": "string"
+    },
+    {
+      "key": "profileScopeId",
+      "value": "u1",
+      "type": "string"
+    },
+    {
+      "key": "refId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "nodeId",
+      "value": "N1",
+      "type": "string"
+    },
+    {
+      "key": "exportedMemory",
+      "value": "{}",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "基础",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "health"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/metrics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "metrics"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "采集与召回",
+      "item": [
+        {
+          "name": "Capture Turn",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenantId}}\",\n  \"user_id\": \"{{userId}}\",\n  \"agent_id\": \"{{agentId}}\",\n  \"session_id\": \"{{sessionId}}\",\n  \"session_key\": \"{{sessionKey}}\",\n  \"idempotency_key\": \"postman-turn-{{$timestamp}}\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"我在开发 Only-One-Memory，需要记住当前调试链路。\",\n      \"timestamp\": \"2026-05-20T00:00:00Z\"\n    },\n    {\n      \"role\": \"assistant\",\n      \"content\": \"已记录本轮调试上下文。\",\n      \"timestamp\": \"2026-05-20T00:00:01Z\"\n    }\n  ],\n  \"tool_events\": [],\n  \"metadata\": {\n    \"source\": \"postman\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/capture/turn",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "capture",
+                "turn"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Conversations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenantId}}\",\n  \"user_id\": \"{{userId}}\",\n  \"query\": \"Only-One-Memory\",\n  \"limit\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/conversations/search",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "conversations",
+                "search"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Memories",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenantId}}\",\n  \"user_id\": \"{{userId}}\",\n  \"query\": \"调试链路\",\n  \"limit\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/memories/search",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "memories",
+                "search"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Recall Before",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenantId}}\",\n  \"user_id\": \"{{userId}}\",\n  \"agent_id\": \"{{agentId}}\",\n  \"session_id\": \"{{sessionId}}\",\n  \"session_key\": \"{{sessionKey}}\",\n  \"user_text\": \"继续 Only-One-Memory 的 Postman 调试。\",\n  \"max_results\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/recall/before",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "recall",
+                "before"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "场景与画像",
+      "item": [
+        {
+          "name": "List Scenes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/scenes?tenant_id={{tenantId}}&user_id={{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "scenes"
+              ],
+              "query": [
+                {
+                  "key": "tenant_id",
+                  "value": "{{tenantId}}"
+                },
+                {
+                  "key": "user_id",
+                  "value": "{{userId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Patch Scene",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenantId}}\",\n  \"user_id\": \"{{userId}}\",\n  \"content\": \"## 用户核心特征\\n用户正在调试 Only-One-Memory。\",\n  \"summary\": \"Postman 调试场景。\",\n  \"heat\": 2,\n  \"metadata\": {\n    \"source\": \"postman\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/scenes/{{sceneId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "scenes",
+                "{{sceneId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Scene",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/scenes/{{sceneId}}?tenant_id={{tenantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "scenes",
+                "{{sceneId}}"
+              ],
+              "query": [
+                {
+                  "key": "tenant_id",
+                  "value": "{{tenantId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Patch Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenantId}}\",\n  \"content\": \"# 用户画像\\n用户重视可复现的接口调试流程。\",\n  \"metadata\": {\n    \"source\": \"postman\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/profiles/{{profileScope}}/{{profileScopeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "profiles",
+                "{{profileScope}}",
+                "{{profileScopeId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/profiles/{{profileScope}}/{{profileScopeId}}?tenant_id={{tenantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "profiles",
+                "{{profileScope}}",
+                "{{profileScopeId}}"
+              ],
+              "query": [
+                {
+                  "key": "tenant_id",
+                  "value": "{{tenantId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Context Offload",
+      "item": [
+        {
+          "name": "Create Ref",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('refId', body.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenantId}}\",\n  \"user_id\": \"{{userId}}\",\n  \"agent_id\": \"{{agentId}}\",\n  \"session_id\": \"{{sessionId}}\",\n  \"kind\": \"tool_result\",\n  \"content\": \"这是一个较大的工具结果原文，用于测试 offload restore。\",\n  \"metadata\": {\n    \"source\": \"postman\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/offload/refs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "offload",
+                "refs"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Ref",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/offload/refs/{{refId}}?tenant_id={{tenantId}}&session_id={{sessionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "offload",
+                "refs",
+                "{{refId}}"
+              ],
+              "query": [
+                {
+                  "key": "tenant_id",
+                  "value": "{{tenantId}}"
+                },
+                {
+                  "key": "session_id",
+                  "value": "{{sessionId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Restore By Ref",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenantId}}\",\n  \"session_id\": \"{{sessionId}}\",\n  \"result_ref\": \"{{refId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/offload/restore",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "offload",
+                "restore"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Entry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenantId}}\",\n  \"user_id\": \"{{userId}}\",\n  \"agent_id\": \"{{agentId}}\",\n  \"session_id\": \"{{sessionId}}\",\n  \"tool_call_id\": \"call-postman-1\",\n  \"tool_name\": \"debug_tool\",\n  \"summary\": \"Postman 创建的 offload entry。\",\n  \"score\": 8,\n  \"node_id\": \"{{nodeId}}\",\n  \"result_ref\": \"{{refId}}\",\n  \"metadata\": {\n    \"source\": \"postman\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/offload/entries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "offload",
+                "entries"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Entries",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/offload/entries?tenant_id={{tenantId}}&session_id={{sessionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "offload",
+                "entries"
+              ],
+              "query": [
+                {
+                  "key": "tenant_id",
+                  "value": "{{tenantId}}"
+                },
+                {
+                  "key": "session_id",
+                  "value": "{{sessionId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Restore By Node",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenantId}}\",\n  \"session_id\": \"{{sessionId}}\",\n  \"node_id\": \"{{nodeId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/offload/restore",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "offload",
+                "restore"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Graph",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/offload/graph/{{sessionId}}?tenant_id={{tenantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "offload",
+                "graph",
+                "{{sessionId}}"
+              ],
+              "query": [
+                {
+                  "key": "tenant_id",
+                  "value": "{{tenantId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{apiKey}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Pipeline Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/pipeline/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "pipeline",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reindex",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/reindex",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "reindex"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Export Tenant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set('exportedMemory', JSON.stringify(pm.response.json(), null, 2));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenantId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "export"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Import Last Export",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{exportedMemory}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/import",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "import"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenantId}}\",\n  \"user_id\": \"{{userId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/delete-user",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "delete-user"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
